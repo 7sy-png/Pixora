@@ -28,7 +28,7 @@ QLabel#pageTitle {
 
 QLabel#pageSubtitle,
 QLabel#settingsPlaceholder,
-QLabel#previewPlaceholder {
+QLabel#dropHint {
     color: #8d99ab;
 }
 
@@ -47,6 +47,34 @@ QFrame#settingsCard {
 
 QFrame#previewCard {
     background-color: #0e141e;
+}
+
+QWidget#dropZone {
+    background-color: #0b111a;
+    border: 2px dashed #303b4e;
+    border-radius: 14px;
+}
+
+QWidget#dropZone[dragActive="true"] {
+    background-color: #17152a;
+    border-color: #8068ed;
+}
+
+QLabel#dropIcon {
+    color: #8068ed;
+    font-size: 38px;
+    font-weight: 300;
+}
+
+QLabel#dropTitle {
+    color: #e6edf7;
+    font-size: 17px;
+    font-weight: 600;
+}
+
+QWidget#dropZone[dragActive="true"] QLabel#dropIcon,
+QWidget#dropZone[dragActive="true"] QLabel#dropTitle {
+    color: #b7a7ff;
 }
 
 QPushButton {

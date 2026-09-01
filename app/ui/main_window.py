@@ -1,6 +1,8 @@
 """Main application window."""
 
-from PySide6.QtCore import Qt
+from pathlib import Path
+
+from PySide6.QtCore import Qt, Slot
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -12,6 +14,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from app.ui.drop_zone import DropZoneWidget
 
 
 class MainWindow(QMainWindow):
@@ -93,7 +97,7 @@ class MainWindow(QMainWindow):
         return layout
 
     def _create_preview_card(self) -> QFrame:
-        """Create an empty image preview area."""
+        """Create the image drop and preview area."""
         preview_card = QFrame(self)
         preview_card.setObjectName("previewCard")
         preview_card.setFrameShape(QFrame.Shape.StyledPanel)
@@ -104,11 +108,25 @@ class MainWindow(QMainWindow):
         )
 
         layout = QVBoxLayout(preview_card)
-        placeholder = QLabel("Предпросмотр изображения", preview_card)
-        placeholder.setObjectName("previewPlaceholder")
-        placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(placeholder)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        self.drop_zone = DropZoneWidget(preview_card)
+        self.drop_zone.file_selected.connect(self._handle_file_selected)
+        self.drop_zone.file_rejected.connect(self._handle_file_rejected)
+        layout.addWidget(self.drop_zone)
         return preview_card
+
+    @Slot(str)
+    def _handle_file_selected(self, file_path: str) -> None:
+        """Acknowledge the path until preview loading is implemented."""
+        self.statusBar().showMessage(
+            f"Выбрано изображение: {Path(file_path).name}"
+        )
+
+    @Slot(str)
+    def _handle_file_rejected(self, message: str) -> None:
+        """Show a short validation message for an unsupported drop."""
+        self.statusBar().showMessage(message, 5000)
 
     def _create_settings_card(self) -> QFrame:
         """Create the placeholder for processing settings."""
