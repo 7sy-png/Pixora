@@ -35,7 +35,9 @@ pytest: 60 passed
 compileall: успешно
 GUI pipeline smoke: успешно
 минимальный размер 960×640: проверен нативным рендером Windows
+Docker build: успешно
+Docker run: 60 passed
 ```
 
-Docker Desktop установлен локально; запуск Engine потребует перезагрузки
-Windows после включения WSL 2.
+Docker Desktop и WSL 2 установлены локально. Образ `pixora-tests` успешно
+собран и проверен реальным запуском контейнера.
