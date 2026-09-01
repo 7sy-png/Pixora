@@ -12,6 +12,12 @@ DARK_STYLESHEET_PATH = (
 CHECK_ICON_PATH = (
     Path(__file__).resolve().parent.parent / "resources" / "icons" / "check.svg"
 )
+LOGO_PATH = (
+    Path(__file__).resolve().parent.parent / "resources" / "icons" / "pixora-logo.png"
+)
+APP_ICON_PATH = (
+    Path(__file__).resolve().parent.parent / "resources" / "icons" / "pixora-icon.ico"
+)
 
 
 def load_dark_stylesheet() -> str:

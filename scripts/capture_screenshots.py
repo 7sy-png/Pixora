@@ -12,10 +12,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.database import Database
-from app.models import ImageInfo, ProcessingResult
-from app.repositories import HistoryRepository
-from app.services import HistoryService, ImageService
+from app.models import ProcessingOptions, ProcessingResult
+from app.services import ImageService
 from app.ui.main_window import MainWindow
 from app.ui.theme import apply_dark_theme
 
@@ -41,28 +39,8 @@ def create_showcase_image(destination: Path) -> None:
     image.save(destination, format="PNG", optimize=True)
 
 
-def create_result(
-    source: ImageInfo,
-    *,
-    output_format: str = "WEBP",
-    output_width: int = 960,
-    output_height: int = 540,
-    output_size: int = 6_200,
-    quality: int = 82,
-) -> ProcessingResult:
-    """Build result metadata used by the result and history screenshots."""
-    return ProcessingResult(
-        source=source,
-        output_format=output_format,
-        output_width=output_width,
-        output_height=output_height,
-        output_size=output_size,
-        quality=quality,
-    )
-
-
 def main() -> int:
-    """Render the main, result, and history states into PNG files."""
+    """Render the workspace and inline result states into PNG files."""
     SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
     application = QApplication.instance() or QApplication([])
     apply_dark_theme(application)
@@ -72,63 +50,42 @@ def main() -> int:
         sample_path = temporary_path / "aurora-demo.png"
         create_showcase_image(sample_path)
 
-        history_service = HistoryService(
-            HistoryRepository(Database(temporary_path / "pixora.db"))
-        )
-        window = MainWindow(ImageService(), history_service)
-        window.resize(1180, 900)
+        image_service = ImageService()
+        window = MainWindow(image_service)
+        window.resize(1180, 760)
         window.show()
         window.preview_widget.load_image(str(sample_path))
         window.settings_panel.width_spin_box.setValue(960)
         window.settings_panel.output_format_combo.setCurrentText("WEBP")
         window.settings_panel.quality_slider.setValue(82)
-        window.toast.hide()
         application.processEvents()
         window.grab().save(str(SCREENSHOT_DIR / "pixora-main.png"))
 
         source = window.preview_widget.image_info
         if source is None:
             raise RuntimeError("The showcase image was not loaded")
-        result = create_result(source)
-
-        window.result_panel.set_result(result)
-        window.result_panel.resize(640, 430)
-        window.result_panel.show()
+        options = ProcessingOptions(
+            width=960,
+            height=540,
+            output_format="WEBP",
+            quality=82,
+        )
+        processed_image = image_service.process(sample_path, options)
+        encoded_data = image_service.encode(processed_image, options)
+        result = ProcessingResult(
+            source=source,
+            output_format="WEBP",
+            output_width=processed_image.width,
+            output_height=processed_image.height,
+            output_size=len(encoded_data),
+            quality=82,
+        )
+        window.result_panel.set_result(result, encoded_data)
+        window.content_stack.setCurrentWidget(window.result_panel)
         application.processEvents()
-        window.result_panel.grab().save(
-            str(SCREENSHOT_DIR / "pixora-result.png")
-        )
-        window.result_panel.close()
+        window.grab().save(str(SCREENSHOT_DIR / "pixora-result.png"))
 
-        history_service.record_processing(
-            result,
-            temporary_path / "aurora-demo_pixora.webp",
-        )
-        second_source = ImageInfo(
-            path=temporary_path / "mountain-landscape.jpg",
-            filename="mountain-landscape.jpg",
-            format="JPEG",
-            width=2400,
-            height=1600,
-            size=1_820_000,
-        )
-        history_service.record_processing(
-            create_result(
-                second_source,
-                output_width=1200,
-                output_height=800,
-                output_size=284_000,
-                quality=76,
-            ),
-            temporary_path / "mountain-landscape_pixora.webp",
-        )
-        window.history_view.refresh()
-        window.history_view.resize(1000, 520)
-        window.history_view.show()
-        application.processEvents()
-        window.history_view.grab().save(
-            str(SCREENSHOT_DIR / "pixora-history.png")
-        )
+        processed_image.close()
         window.close()
 
     return 0

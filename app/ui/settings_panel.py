@@ -34,8 +34,8 @@ class SettingsPanel(QWidget):
         self._rotation = 0
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
+        layout.setContentsMargins(2, 4, 16, 8)
+        layout.setSpacing(10)
 
         section_label = QLabel("Размер", self)
         section_label.setObjectName("sectionLabel")
@@ -44,7 +44,7 @@ class SettingsPanel(QWidget):
         form_layout = QFormLayout()
         form_layout.setContentsMargins(0, 0, 0, 0)
         form_layout.setHorizontalSpacing(14)
-        form_layout.setVerticalSpacing(10)
+        form_layout.setVerticalSpacing(8)
         form_layout.setFieldGrowthPolicy(
             QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
         )
@@ -79,6 +79,11 @@ class SettingsPanel(QWidget):
         )
         layout.addWidget(self.output_format_combo)
 
+        self.quality_controls = QWidget(self)
+        quality_layout = QVBoxLayout(self.quality_controls)
+        quality_layout.setContentsMargins(0, 0, 0, 0)
+        quality_layout.setSpacing(6)
+
         quality_header = QHBoxLayout()
         quality_header.setContentsMargins(0, 0, 0, 0)
 
@@ -90,7 +95,7 @@ class SettingsPanel(QWidget):
         self.quality_value_label = QLabel("80", self)
         self.quality_value_label.setObjectName("qualityValue")
         quality_header.addWidget(self.quality_value_label)
-        layout.addLayout(quality_header)
+        quality_layout.addLayout(quality_header)
 
         self.quality_slider = QSlider(Qt.Orientation.Horizontal, self)
         self.quality_slider.setObjectName("qualitySlider")
@@ -99,7 +104,14 @@ class SettingsPanel(QWidget):
         self.quality_slider.setEnabled(False)
         self.quality_slider.setToolTip("Качество JPEG или WEBP от 1 до 100")
         self.quality_slider.valueChanged.connect(self._on_quality_changed)
-        layout.addWidget(self.quality_slider)
+        quality_layout.addWidget(self.quality_slider)
+        layout.addWidget(self.quality_controls)
+
+        self.lossless_hint = QLabel("PNG сохраняется без потери качества", self)
+        self.lossless_hint.setObjectName("qualityHint")
+        self.lossless_hint.setWordWrap(True)
+        self.lossless_hint.hide()
+        layout.addWidget(self.lossless_hint)
 
         rotation_label = QLabel("Поворот", self)
         rotation_label.setObjectName("sectionLabel")
@@ -252,13 +264,15 @@ class SettingsPanel(QWidget):
 
     @Slot(str)
     def _update_quality_state(self, output_format: str) -> None:
-        """Disable quality controls for lossless PNG output."""
-        is_available = self.output_format_combo.isEnabled() and output_format != "PNG"
+        """Replace the irrelevant PNG slider with a lossless-format hint."""
+        has_image = self.output_format_combo.isEnabled()
+        is_png = output_format == "PNG"
+        is_available = has_image and not is_png
+        self.quality_controls.setVisible(not (has_image and is_png))
+        self.lossless_hint.setVisible(has_image and is_png)
         self.quality_slider.setEnabled(is_available)
         self.quality_value_label.setEnabled(is_available)
-        self.quality_value_label.setText(
-            str(self.quality_slider.value()) if is_available else "—"
-        )
+        self.quality_value_label.setText(str(self.quality_slider.value()))
 
     @Slot(int)
     def _on_quality_changed(self, quality: int) -> None:

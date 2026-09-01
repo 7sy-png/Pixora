@@ -1,49 +1,43 @@
 """Main application window."""
 
-import sqlite3
 from pathlib import Path
 
-from PySide6.QtCore import QThreadPool, Qt, QUrl, Slot
-from PySide6.QtGui import QDesktopServices, QResizeEvent
 from PIL import Image
+from PySide6.QtCore import QThreadPool, Qt, Slot
+from PySide6.QtGui import QCloseEvent, QIcon, QPixmap
 from PySide6.QtWidgets import (
-    QFrame,
     QFileDialog,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QMainWindow,
-    QPushButton,
     QScrollArea,
     QSizePolicy,
+    QStackedWidget,
     QStatusBar,
     QVBoxLayout,
     QWidget,
 )
 
 from app.models import ProcessingOptions, ProcessingResult
-from app.services import HistoryService, ImageService
-from app.ui.history_view import HistoryView
+from app.services import ImageService
 from app.ui.preview_widget import PreviewWidget
 from app.ui.result_panel import ResultPanel
 from app.ui.settings_panel import SettingsPanel
-from app.ui.toast import ToastNotification
+from app.ui.theme import APP_ICON_PATH, LOGO_PATH
 from app.workers import ImageWorker
 
 
 class MainWindow(QMainWindow):
     """Top-level window of the Pixora application."""
 
-    def __init__(
-        self,
-        image_service: ImageService,
-        history_service: HistoryService,
-    ) -> None:
+    def __init__(self, image_service: ImageService) -> None:
         super().__init__()
         self.setWindowTitle("Pixora")
+        self.setWindowIcon(QIcon(str(APP_ICON_PATH)))
         self.setMinimumSize(960, 640)
         self.resize(1180, 760)
         self.image_service = image_service
-        self.history_service = history_service
         self.thread_pool = QThreadPool(self)
         self.processed_image: Image.Image | None = None
         self.processed_data: bytes | None = None
@@ -52,23 +46,26 @@ class MainWindow(QMainWindow):
         self._active_options: ProcessingOptions | None = None
 
         self._build_interface()
-        self.result_panel = ResultPanel(self)
-        self.result_panel.save_requested.connect(self._save_processed_image)
-        self.history_view = HistoryView(self.history_service, self)
-        self.history_view.open_requested.connect(self._open_history_result)
-        self.toast = ToastNotification(self)
 
     def _build_interface(self) -> None:
-        """Build the initial layout without image-processing behavior."""
+        """Build the branded header and single-window content stack."""
         central_widget = QWidget(self)
         central_widget.setObjectName("centralWidget")
 
         main_layout = QVBoxLayout(central_widget)
-        main_layout.setContentsMargins(32, 24, 32, 20)
-        main_layout.setSpacing(24)
+        main_layout.setContentsMargins(32, 20, 32, 16)
+        main_layout.setSpacing(18)
         main_layout.addWidget(self._create_header())
-        main_layout.addLayout(self._create_intro())
-        main_layout.addLayout(self._create_workspace(), stretch=1)
+
+        self.content_stack = QStackedWidget(central_widget)
+        self.content_stack.setObjectName("contentStack")
+        self.workspace_page = self._create_workspace()
+        self.result_panel = ResultPanel(self.content_stack)
+        self.result_panel.save_requested.connect(self._save_processed_image)
+        self.result_panel.back_requested.connect(self._show_workspace)
+        self.content_stack.addWidget(self.workspace_page)
+        self.content_stack.addWidget(self.result_panel)
+        main_layout.addWidget(self.content_stack, stretch=1)
 
         self.setCentralWidget(central_widget)
 
@@ -78,63 +75,47 @@ class MainWindow(QMainWindow):
         self.setStatusBar(status_bar)
 
     def _create_header(self) -> QFrame:
-        """Create the top navigation bar."""
+        """Create the compact Pixora brand header."""
         header = QFrame(self)
         header.setObjectName("header")
 
         layout = QHBoxLayout(header)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
+        layout.setSpacing(10)
+
+        logo_label = QLabel(header)
+        logo_label.setObjectName("brandIcon")
+        logo_label.setFixedSize(38, 38)
+        logo_label.setPixmap(
+            QPixmap(str(LOGO_PATH)).scaled(
+                38,
+                38,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        )
+        layout.addWidget(logo_label)
 
         brand_label = QLabel("PIXORA", header)
         brand_label.setObjectName("brandLabel")
         layout.addWidget(brand_label)
         layout.addStretch()
-
-        self.history_button = QPushButton("История", header)
-        self.history_button.setObjectName("historyButton")
-        self.history_button.setFlat(True)
-        self.history_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.history_button.setToolTip("Открыть историю обработки")
-        self.history_button.clicked.connect(self._show_history)
-        layout.addWidget(self.history_button)
-
-        settings_button = QPushButton("Настройки", header)
-        settings_button.setObjectName("settingsButton")
-        settings_button.setFlat(True)
-        settings_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        settings_button.setToolTip("Перейти к настройкам обработки")
-        settings_button.clicked.connect(self._focus_settings)
-        layout.addWidget(settings_button)
-
         return header
 
-    def _create_intro(self) -> QVBoxLayout:
-        """Create the title and short application description."""
-        layout = QVBoxLayout()
-        layout.setSpacing(6)
+    def _create_workspace(self) -> QWidget:
+        """Create the preview and processing settings page."""
+        page = QWidget(self)
+        page.setObjectName("workspacePage")
+        layout = QHBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(22)
+        layout.addWidget(self._create_preview_card(page), stretch=2)
+        layout.addWidget(self._create_settings_card(page), stretch=1)
+        return page
 
-        title_label = QLabel("Image Processing Toolbox", self)
-        title_label.setObjectName("pageTitle")
-        layout.addWidget(title_label)
-
-        subtitle_label = QLabel("Быстрая обработка изображений на вашем компьютере", self)
-        subtitle_label.setObjectName("pageSubtitle")
-        layout.addWidget(subtitle_label)
-
-        return layout
-
-    def _create_workspace(self) -> QHBoxLayout:
-        """Create preview and settings areas."""
-        layout = QHBoxLayout()
-        layout.setSpacing(24)
-        layout.addWidget(self._create_preview_card(), stretch=2)
-        layout.addWidget(self._create_settings_card(), stretch=1)
-        return layout
-
-    def _create_preview_card(self) -> QFrame:
+    def _create_preview_card(self, parent: QWidget) -> QFrame:
         """Create the image drop and preview area."""
-        preview_card = QFrame(self)
+        preview_card = QFrame(parent)
         preview_card.setObjectName("previewCard")
         preview_card.setFrameShape(QFrame.Shape.StyledPanel)
         preview_card.setMinimumHeight(420)
@@ -152,32 +133,16 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.preview_widget)
         return preview_card
 
-    @Slot(str)
-    def _handle_file_selected(self, file_path: str) -> None:
-        """Acknowledge the path until preview loading is implemented."""
-        self.statusBar().showMessage(
-            f"Выбрано изображение: {Path(file_path).name}"
-        )
-        if self.preview_widget.image_info is not None:
-            self.settings_panel.set_image_info(self.preview_widget.image_info)
-        self.toast.show_message("Изображение загружено", "success", 2000)
-
-    @Slot(str)
-    def _handle_file_rejected(self, message: str) -> None:
-        """Show a short validation message for an unsupported drop."""
-        self.statusBar().showMessage(message, 5000)
-        self.toast.show_message(message, "error")
-
-    def _create_settings_card(self) -> QFrame:
-        """Create the placeholder for processing settings."""
-        settings_card = QFrame(self)
+    def _create_settings_card(self, parent: QWidget) -> QFrame:
+        """Create the scrollable processing settings card."""
+        settings_card = QFrame(parent)
         settings_card.setObjectName("settingsCard")
         settings_card.setFrameShape(QFrame.Shape.StyledPanel)
-        settings_card.setMinimumWidth(300)
-        settings_card.setMaximumWidth(380)
+        settings_card.setMinimumWidth(310)
+        settings_card.setMaximumWidth(390)
 
         layout = QVBoxLayout(settings_card)
-        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setContentsMargins(22, 20, 12, 18)
         layout.setSpacing(12)
 
         title_label = QLabel("Настройки", settings_card)
@@ -191,12 +156,27 @@ class MainWindow(QMainWindow):
         self.settings_scroll_area.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
+        self.settings_scroll_area.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
 
         self.settings_panel = SettingsPanel()
         self.settings_panel.processing_requested.connect(self._process_image)
         self.settings_scroll_area.setWidget(self.settings_panel)
         layout.addWidget(self.settings_scroll_area, stretch=1)
         return settings_card
+
+    @Slot(str)
+    def _handle_file_selected(self, file_path: str) -> None:
+        """Populate settings and acknowledge the selected image."""
+        self.statusBar().showMessage(f"Выбрано изображение: {Path(file_path).name}")
+        if self.preview_widget.image_info is not None:
+            self.settings_panel.set_image_info(self.preview_widget.image_info)
+
+    @Slot(str)
+    def _handle_file_rejected(self, message: str) -> None:
+        """Show validation feedback in the permanent status bar."""
+        self.statusBar().showMessage(message, 5000)
 
     @Slot()
     def _process_image(self) -> None:
@@ -209,11 +189,7 @@ class MainWindow(QMainWindow):
             return
 
         options = self.settings_panel.processing_options()
-        worker = ImageWorker(
-            self.image_service,
-            image_info.path,
-            options,
-        )
+        worker = ImageWorker(self.image_service, image_info.path, options)
         worker.signals.finished.connect(self._handle_processing_finished)
         worker.signals.error.connect(self._handle_processing_error)
         self._active_worker = worker
@@ -228,7 +204,7 @@ class MainWindow(QMainWindow):
         processed_image: Image.Image,
         encoded_data: bytes,
     ) -> None:
-        """Store a completed image delivered from the worker thread."""
+        """Display a completed result on the main window's result page."""
         if self.processed_image is not None:
             self.processed_image.close()
         self.processed_image = processed_image
@@ -248,31 +224,25 @@ class MainWindow(QMainWindow):
                 output_size=len(encoded_data),
                 quality=options.quality,
             )
-            self.result_panel.set_result(self.processing_result)
-            self.result_panel.show()
-            self.result_panel.raise_()
+            self.result_panel.set_result(self.processing_result, encoded_data)
+            self.content_stack.setCurrentWidget(self.result_panel)
 
         self._active_worker = None
         self._active_options = None
         self.settings_panel.set_processing(False)
         self.statusBar().showMessage("Изображение успешно обработано")
-        self.result_panel.toast.show_message(
-            "Изображение успешно обработано",
-            "success",
-        )
 
     @Slot(str)
     def _handle_processing_error(self, message: str) -> None:
-        """Show a worker failure without touching Pillow in the GUI layer."""
+        """Restore controls and show a worker failure in the status bar."""
         self._active_worker = None
         self._active_options = None
         self.settings_panel.set_processing(False)
         self.statusBar().showMessage(message, 5000)
-        self.toast.show_message(message, "error")
 
     @Slot()
     def _save_processed_image(self) -> None:
-        """Ask for a destination and write the worker's encoded result bytes."""
+        """Ask for a destination and write the encoded result bytes."""
         result = self.processing_result
         if result is None or self.processed_data is None:
             return
@@ -305,61 +275,25 @@ class MainWindow(QMainWindow):
                 destination,
             )
         except OSError as error:
-            self.statusBar().showMessage(str(error), 5000)
-            self.result_panel.toast.show_message(str(error), "error")
+            message = str(error)
+            self.statusBar().showMessage(message, 5000)
+            self.result_panel.show_status(message, "error")
             return
 
-        try:
-            self.history_service.record_processing(result, saved_path)
-        except sqlite3.Error:
-            self.result_panel.toast.show_message(
-                "Файл сохранён, но историю обновить не удалось",
-                "error",
-            )
-            return
-        if self.history_view.isVisible():
-            self.history_view.refresh()
-
+        message = f"Сохранено: {saved_path.name}"
         self.statusBar().showMessage(f"Изображение сохранено: {saved_path.name}")
-        self.result_panel.toast.show_message(
-            "Изображение успешно сохранено",
-            "success",
-        )
+        self.result_panel.show_status(message)
 
     @Slot()
-    def _show_history(self) -> None:
-        """Refresh and show the processing history dialog."""
-        self.history_view.refresh()
-        self.history_view.show()
-        self.history_view.raise_()
+    def _show_workspace(self) -> None:
+        """Return from the inline result page to the existing settings."""
+        self.result_panel.clear_status()
+        self.content_stack.setCurrentWidget(self.workspace_page)
+        self.statusBar().showMessage("Можно изменить настройки и обработать снова")
 
-    @Slot(str)
-    def _open_history_result(self, output_path: str) -> None:
-        """Open an existing processed image from a history row."""
-        path = Path(output_path)
-        if not path.is_file():
-            message = "Сохранённый файл больше не найден"
-            self.statusBar().showMessage(message, 5000)
-            self.toast.show_message(message, "error")
-            return
-
-        if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.resolve()))):
-            message = "Не удалось открыть сохранённое изображение"
-            self.statusBar().showMessage(message, 5000)
-            self.toast.show_message(message, "error")
-
-    @Slot()
-    def _focus_settings(self) -> None:
-        """Reveal the first settings controls and move keyboard focus there."""
-        self.settings_scroll_area.verticalScrollBar().setValue(0)
-        if self.settings_panel.width_spin_box.isEnabled():
-            self.settings_panel.width_spin_box.setFocus()
-        else:
-            self.settings_scroll_area.setFocus()
-
-    def resizeEvent(self, event: QResizeEvent) -> None:
-        """Keep overlay notifications anchored while the window resizes."""
-        super().resizeEvent(event)
-        toast = getattr(self, "toast", None)
-        if toast is not None and toast.isVisible():
-            toast.reposition()
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """Release the retained Pillow image before closing the application."""
+        if self.processed_image is not None:
+            self.processed_image.close()
+            self.processed_image = None
+        super().closeEvent(event)
