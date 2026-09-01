@@ -49,6 +49,15 @@ QLabel#fieldLabel {
     color: #8d99ab;
 }
 
+QLabel#qualityValue {
+    color: #a78bfa;
+    font-weight: 600;
+}
+
+QLabel#qualityValue:disabled {
+    color: #667085;
+}
+
 QFrame#previewCard,
 QFrame#settingsCard {
     background-color: #111722;
