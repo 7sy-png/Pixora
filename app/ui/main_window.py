@@ -23,19 +23,24 @@ from app.ui.preview_widget import PreviewWidget
 from app.ui.result_panel import ResultPanel
 from app.ui.settings_panel import SettingsPanel
 from app.ui.toast import ToastNotification
-from app.services import ImageService
+from app.services import HistoryService, ImageService
 from app.workers import ImageWorker
 
 
 class MainWindow(QMainWindow):
     """Top-level window of the Pixora application."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        image_service: ImageService,
+        history_service: HistoryService,
+    ) -> None:
         super().__init__()
         self.setWindowTitle("Pixora")
         self.setMinimumSize(960, 640)
         self.resize(1180, 760)
-        self.image_service = ImageService()
+        self.image_service = image_service
+        self.history_service = history_service
         self.thread_pool = QThreadPool(self)
         self.processed_image: Image.Image | None = None
         self.processed_data: bytes | None = None
@@ -282,6 +287,8 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(str(error), 5000)
             self.result_panel.toast.show_message(str(error), "error")
             return
+
+        self.history_service.record_processing(result, saved_path)
 
         self.statusBar().showMessage(f"Изображение сохранено: {saved_path.name}")
         self.result_panel.toast.show_message(
