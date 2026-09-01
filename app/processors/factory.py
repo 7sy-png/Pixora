@@ -3,6 +3,7 @@
 from collections.abc import Callable
 
 from app.processors.base import ImageProcessor
+from app.processors.convert import ConvertProcessor
 from app.processors.resize import ResizeProcessor
 
 
@@ -10,6 +11,7 @@ class ProcessorFactory:
     """Create processing strategies by their stable operation name."""
 
     _creators: dict[str, Callable[[], ImageProcessor]] = {
+        "convert": ConvertProcessor,
         "resize": ResizeProcessor,
     }
 
