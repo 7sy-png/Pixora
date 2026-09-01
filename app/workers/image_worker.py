@@ -11,7 +11,7 @@ from app.services import ImageService
 class ImageWorkerSignals(QObject):
     """Deliver worker results back to the GUI thread."""
 
-    finished = Signal(object)
+    finished = Signal(object, bytes)
     error = Signal(str)
 
 
@@ -33,10 +33,14 @@ class ImageWorker(QRunnable):
     @Slot()
     def run(self) -> None:
         """Process the image and emit either a result or an error message."""
+        result = None
         try:
             result = self.image_service.process(self.image_path, self.options)
+            encoded_data = self.image_service.encode(result, self.options)
         except Exception as error:
+            if result is not None:
+                result.close()
             self.signals.error.emit(str(error))
             return
 
-        self.signals.finished.emit(result)
+        self.signals.finished.emit(result, encoded_data)

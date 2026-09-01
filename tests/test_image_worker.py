@@ -19,15 +19,20 @@ class RecordingImageService:
         self.thread_id = threading.get_ident()
         return Image.new("RGB", (options.width, options.height))
 
+    def encode(self, _image: Image.Image, _options: ProcessingOptions) -> bytes:
+        return b"encoded-image"
+
 
 def test_image_worker_runs_on_thread_pool() -> None:
     application = QCoreApplication.instance() or QCoreApplication([])
     service = RecordingImageService()
     worker = ImageWorker(service, "unused.png", ProcessingOptions(4, 3))
-    results: list[Image.Image] = []
+    results: list[tuple[Image.Image, bytes]] = []
 
     event_loop = QEventLoop()
-    worker.signals.finished.connect(results.append)
+    worker.signals.finished.connect(
+        lambda image, data: results.append((image, data))
+    )
     worker.signals.finished.connect(event_loop.quit)
 
     pool = QThreadPool()
@@ -40,8 +45,9 @@ def test_image_worker_runs_on_thread_pool() -> None:
     assert service.thread_id is not None
     assert service.thread_id != threading.get_ident()
     assert len(results) == 1
-    assert results[0].size == (4, 3)
-    results[0].close()
+    assert results[0][0].size == (4, 3)
+    assert results[0][1] == b"encoded-image"
+    results[0][0].close()
 
 
 def test_image_worker_emits_error_message() -> None:

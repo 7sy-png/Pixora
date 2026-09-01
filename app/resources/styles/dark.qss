@@ -5,8 +5,47 @@ QWidget {
 }
 
 QMainWindow,
+QDialog#resultPanel,
 QWidget#centralWidget {
     background-color: #090d14;
+}
+
+QLabel#resultTitle {
+    color: #f8fafc;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+QFrame#resultSummaryCard {
+    background-color: #111722;
+    border: 1px solid #2a3445;
+    border-radius: 12px;
+}
+
+QLabel#resultCardTitle {
+    color: #a78bfa;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+QLabel#resultMetric {
+    color: #c8d0dc;
+}
+
+QLabel#savingsLabel {
+    color: #55d6a6;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+QLabel#savingsLabel[increased="true"] {
+    color: #f0a868;
+}
+
+QPushButton#secondaryButton {
+    color: #c8d0dc;
+    background-color: #171e2a;
+    border-color: #354158;
 }
 
 QFrame#header {

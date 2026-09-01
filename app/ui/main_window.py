@@ -16,7 +16,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.models import ProcessingOptions, ProcessingResult
 from app.ui.preview_widget import PreviewWidget
+from app.ui.result_panel import ResultPanel
 from app.ui.settings_panel import SettingsPanel
 from app.services import ImageService
 from app.workers import ImageWorker
@@ -33,9 +35,13 @@ class MainWindow(QMainWindow):
         self.image_service = ImageService()
         self.thread_pool = QThreadPool(self)
         self.processed_image: Image.Image | None = None
+        self.processed_data: bytes | None = None
+        self.processing_result: ProcessingResult | None = None
         self._active_worker: ImageWorker | None = None
+        self._active_options: ProcessingOptions | None = None
 
         self._build_interface()
+        self.result_panel = ResultPanel(self)
 
     def _build_interface(self) -> None:
         """Build the initial layout without image-processing behavior."""
@@ -169,25 +175,52 @@ class MainWindow(QMainWindow):
         if image_info is None:
             return
 
+        options = self.settings_panel.processing_options()
         worker = ImageWorker(
             self.image_service,
             image_info.path,
-            self.settings_panel.processing_options(),
+            options,
         )
         worker.signals.finished.connect(self._handle_processing_finished)
         worker.signals.error.connect(self._handle_processing_error)
         self._active_worker = worker
+        self._active_options = options
         self.settings_panel.set_processing(True)
         self.statusBar().showMessage("Обработка изображения...")
         self.thread_pool.start(worker)
 
-    @Slot(object)
-    def _handle_processing_finished(self, processed_image: Image.Image) -> None:
+    @Slot(object, bytes)
+    def _handle_processing_finished(
+        self,
+        processed_image: Image.Image,
+        encoded_data: bytes,
+    ) -> None:
         """Store a completed image delivered from the worker thread."""
         if self.processed_image is not None:
             self.processed_image.close()
         self.processed_image = processed_image
+        self.processed_data = encoded_data
+
+        image_info = self.preview_widget.image_info
+        options = self._active_options
+        if image_info is not None and options is not None:
+            output_format = options.output_format.strip().upper()
+            if output_format == "JPG":
+                output_format = "JPEG"
+            self.processing_result = ProcessingResult(
+                source=image_info,
+                output_format=output_format,
+                output_width=processed_image.width,
+                output_height=processed_image.height,
+                output_size=len(encoded_data),
+                quality=options.quality,
+            )
+            self.result_panel.set_result(self.processing_result)
+            self.result_panel.show()
+            self.result_panel.raise_()
+
         self._active_worker = None
+        self._active_options = None
         self.settings_panel.set_processing(False)
         self.statusBar().showMessage("Изображение успешно обработано")
 
@@ -195,5 +228,6 @@ class MainWindow(QMainWindow):
     def _handle_processing_error(self, message: str) -> None:
         """Show a worker failure without touching Pillow in the GUI layer."""
         self._active_worker = None
+        self._active_options = None
         self.settings_panel.set_processing(False)
         self.statusBar().showMessage(message, 5000)
