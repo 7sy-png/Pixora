@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Slot
+from PIL import Image
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -17,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from app.ui.preview_widget import PreviewWidget
 from app.ui.settings_panel import SettingsPanel
+from app.services import ImageService
 
 
 class MainWindow(QMainWindow):
@@ -27,6 +29,8 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Pixora")
         self.setMinimumSize(960, 640)
         self.resize(1180, 760)
+        self.image_service = ImageService()
+        self.processed_image: Image.Image | None = None
 
         self._build_interface()
 
@@ -148,5 +152,27 @@ class MainWindow(QMainWindow):
         layout.addWidget(title_label)
 
         self.settings_panel = SettingsPanel(settings_card)
+        self.settings_panel.processing_requested.connect(self._process_image)
         layout.addWidget(self.settings_panel, stretch=1)
         return settings_card
+
+    @Slot()
+    def _process_image(self) -> None:
+        """Collect UI settings and run the application service."""
+        image_info = self.preview_widget.image_info
+        if image_info is None:
+            return
+
+        try:
+            processed_image = self.image_service.process(
+                image_info.path,
+                self.settings_panel.processing_options(),
+            )
+        except (OSError, ValueError) as error:
+            self.statusBar().showMessage(str(error), 5000)
+            return
+
+        if self.processed_image is not None:
+            self.processed_image.close()
+        self.processed_image = processed_image
+        self.statusBar().showMessage("Изображение успешно обработано")

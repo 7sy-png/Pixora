@@ -1,6 +1,6 @@
 """Image processing settings panel."""
 
-from PySide6.QtCore import QSignalBlocker, Qt, Slot
+from PySide6.QtCore import QSignalBlocker, Qt, Signal, Slot
 
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -16,13 +16,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.models import ImageInfo
+from app.models import ImageInfo, ProcessingOptions
 
 
 class SettingsPanel(QWidget):
     """Display editable output dimensions for the selected image."""
 
     MAX_DIMENSION = 100_000
+    processing_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -133,6 +134,13 @@ class SettingsPanel(QWidget):
         layout.addWidget(self.flip_vertical_button)
         layout.addStretch()
 
+        self.process_button = QPushButton("Обработать изображение", self)
+        self.process_button.setObjectName("processButton")
+        self.process_button.setEnabled(False)
+        self.process_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.process_button.clicked.connect(self.processing_requested)
+        layout.addWidget(self.process_button)
+
     def set_image_info(self, image_info: ImageInfo) -> None:
         """Populate dimensions and enable controls for a selected image."""
         self._aspect_ratio = image_info.width / image_info.height
@@ -158,6 +166,7 @@ class SettingsPanel(QWidget):
             with QSignalBlocker(button):
                 button.setChecked(False)
             button.setEnabled(True)
+        self.process_button.setEnabled(True)
 
     @property
     def rotation(self) -> int:
@@ -173,6 +182,19 @@ class SettingsPanel(QWidget):
     def flip_vertical(self) -> bool:
         """Return whether vertical reflection is selected."""
         return self.flip_vertical_button.isChecked()
+
+    def processing_options(self) -> ProcessingOptions:
+        """Build a standalone snapshot of all currently visible settings."""
+        return ProcessingOptions(
+            width=self.width_spin_box.value(),
+            height=self.height_spin_box.value(),
+            keep_aspect_ratio=self.keep_aspect_checkbox.isChecked(),
+            output_format=self.output_format_combo.currentText(),
+            quality=self.quality_slider.value(),
+            rotation=self.rotation,
+            flip_horizontal=self.flip_horizontal,
+            flip_vertical=self.flip_vertical,
+        )
 
     @Slot(int)
     def _on_width_changed(self, width: int) -> None:
