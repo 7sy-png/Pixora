@@ -4,6 +4,7 @@ from PySide6.QtCore import QSignalBlocker, Slot
 
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QFormLayout,
     QLabel,
     QSizePolicy,
@@ -56,6 +57,16 @@ class SettingsPanel(QWidget):
         self.keep_aspect_checkbox.setEnabled(False)
         self.keep_aspect_checkbox.toggled.connect(self._on_keep_aspect_toggled)
         layout.addWidget(self.keep_aspect_checkbox)
+
+        format_label = QLabel("Формат", self)
+        format_label.setObjectName("sectionLabel")
+        layout.addWidget(format_label)
+
+        self.output_format_combo = QComboBox(self)
+        self.output_format_combo.setObjectName("outputFormatCombo")
+        self.output_format_combo.addItems(("JPEG", "PNG", "WEBP"))
+        self.output_format_combo.setEnabled(False)
+        layout.addWidget(self.output_format_combo)
         layout.addStretch()
 
     def set_image_info(self, image_info: ImageInfo) -> None:
@@ -71,6 +82,8 @@ class SettingsPanel(QWidget):
         self.width_spin_box.setEnabled(True)
         self.height_spin_box.setEnabled(True)
         self.keep_aspect_checkbox.setEnabled(True)
+        self.output_format_combo.setCurrentText(image_info.format)
+        self.output_format_combo.setEnabled(True)
 
     @Slot(int)
     def _on_width_changed(self, width: int) -> None:
