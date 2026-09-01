@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 
 from app.models import ProcessingOptions, ProcessingResult
 from app.ui.preview_widget import PreviewWidget
+from app.ui.history_view import HistoryView
 from app.ui.result_panel import ResultPanel
 from app.ui.settings_panel import SettingsPanel
 from app.ui.toast import ToastNotification
@@ -51,6 +52,7 @@ class MainWindow(QMainWindow):
         self._build_interface()
         self.result_panel = ResultPanel(self)
         self.result_panel.save_requested.connect(self._save_processed_image)
+        self.history_view = HistoryView(self.history_service, self)
         self.toast = ToastNotification(self)
 
     def _build_interface(self) -> None:
@@ -86,14 +88,17 @@ class MainWindow(QMainWindow):
         layout.addWidget(brand_label)
         layout.addStretch()
 
-        for title, object_name in (
-            ("История", "historyButton"),
-            ("Настройки", "settingsButton"),
-        ):
-            button = QPushButton(title, header)
-            button.setObjectName(object_name)
-            button.setFlat(True)
-            layout.addWidget(button)
+        self.history_button = QPushButton("История", header)
+        self.history_button.setObjectName("historyButton")
+        self.history_button.setFlat(True)
+        self.history_button.clicked.connect(self._show_history)
+        layout.addWidget(self.history_button)
+
+        settings_button = QPushButton("Настройки", header)
+        settings_button.setObjectName("settingsButton")
+        settings_button.setFlat(True)
+        settings_button.clicked.connect(self._focus_settings)
+        layout.addWidget(settings_button)
 
         return header
 
@@ -289,12 +294,26 @@ class MainWindow(QMainWindow):
             return
 
         self.history_service.record_processing(result, saved_path)
+        if self.history_view.isVisible():
+            self.history_view.refresh()
 
         self.statusBar().showMessage(f"Изображение сохранено: {saved_path.name}")
         self.result_panel.toast.show_message(
             "Изображение успешно сохранено",
             "success",
         )
+
+    @Slot()
+    def _show_history(self) -> None:
+        """Refresh and show the processing history dialog."""
+        self.history_view.refresh()
+        self.history_view.show()
+        self.history_view.raise_()
+
+    @Slot()
+    def _focus_settings(self) -> None:
+        """Move keyboard focus to the settings panel."""
+        self.settings_panel.setFocus()
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         """Keep overlay notifications anchored while the window resizes."""

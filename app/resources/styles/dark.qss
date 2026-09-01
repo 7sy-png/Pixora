@@ -6,8 +6,46 @@ QWidget {
 
 QMainWindow,
 QDialog#resultPanel,
+QDialog#historyView,
 QWidget#centralWidget {
     background-color: #090d14;
+}
+
+QLabel#historyTitle {
+    color: #f8fafc;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+QLabel#historyEmptyLabel {
+    color: #8d99ab;
+    font-size: 16px;
+}
+
+QTableWidget#historyTable {
+    color: #d9e0ea;
+    background-color: #0e141e;
+    alternate-background-color: #111924;
+    border: 1px solid #242d3d;
+    border-radius: 10px;
+    gridline-color: #242d3d;
+    selection-color: #ffffff;
+    selection-background-color: #46389e;
+}
+
+QTableWidget#historyTable::item {
+    padding: 8px;
+    border: none;
+}
+
+QHeaderView::section {
+    padding: 9px 8px;
+    color: #aab4c3;
+    background-color: #151c28;
+    border: none;
+    border-right: 1px solid #242d3d;
+    border-bottom: 1px solid #242d3d;
+    font-weight: 600;
 }
 
 QLabel#resultTitle {
