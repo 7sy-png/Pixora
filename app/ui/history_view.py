@@ -1,6 +1,6 @@
 """Dialog for browsing image processing history."""
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal, Slot
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -25,6 +25,7 @@ class HistoryView(QDialog):
     """Display persisted processing operations in a read-only table."""
 
     HEADERS = ("Дата", "Файл", "Форматы", "Разрешение", "Размер", "Экономия")
+    open_requested = Signal(str)
 
     def __init__(
         self,
@@ -57,6 +58,10 @@ class HistoryView(QDialog):
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setAlternatingRowColors(True)
+        self.table.setToolTip(
+            "Дважды щёлкните строку, чтобы открыть сохранённое изображение"
+        )
+        self.table.cellDoubleClicked.connect(self._request_open)
         self.table.verticalHeader().setVisible(False)
         self.table.verticalHeader().setDefaultSectionSize(44)
         self.table.horizontalHeader().setSectionResizeMode(
@@ -80,12 +85,14 @@ class HistoryView(QDialog):
 
         self.clear_button = QPushButton("Очистить историю", self)
         self.clear_button.setObjectName("dangerButton")
+        self.clear_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.clear_button.clicked.connect(self._confirm_clear)
         actions_layout.addWidget(self.clear_button)
         actions_layout.addStretch()
 
         close_button = QPushButton("Закрыть", self)
         close_button.setObjectName("secondaryButton")
+        close_button.setCursor(Qt.CursorShape.PointingHandCursor)
         close_button.clicked.connect(self.close)
         actions_layout.addWidget(close_button)
         layout.addLayout(actions_layout)
@@ -114,6 +121,16 @@ class HistoryView(QDialog):
 
         self.history_service.clear_history()
         self.refresh()
+
+    @Slot(int, int)
+    def _request_open(self, row_index: int, _column_index: int) -> None:
+        """Ask the main window to open the result associated with a row."""
+        item = self.table.item(row_index, 0)
+        if item is None:
+            return
+        output_path = item.data(Qt.ItemDataRole.UserRole)
+        if output_path:
+            self.open_requested.emit(str(output_path))
 
     def _fill_row(self, row_index: int, record: HistoryRecord) -> None:
         """Render one history record into a table row."""

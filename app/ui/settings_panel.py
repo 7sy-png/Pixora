@@ -71,6 +71,7 @@ class SettingsPanel(QWidget):
 
         self.output_format_combo = QComboBox(self)
         self.output_format_combo.setObjectName("outputFormatCombo")
+        self.output_format_combo.setToolTip("Формат сохранённого изображения")
         self.output_format_combo.addItems(("JPEG", "PNG", "WEBP"))
         self.output_format_combo.setEnabled(False)
         self.output_format_combo.currentTextChanged.connect(
@@ -96,6 +97,7 @@ class SettingsPanel(QWidget):
         self.quality_slider.setRange(1, 100)
         self.quality_slider.setValue(80)
         self.quality_slider.setEnabled(False)
+        self.quality_slider.setToolTip("Качество JPEG или WEBP от 1 до 100")
         self.quality_slider.valueChanged.connect(self._on_quality_changed)
         layout.addWidget(self.quality_slider)
 
@@ -112,6 +114,8 @@ class SettingsPanel(QWidget):
             button.setObjectName("toolButton")
             button.setCheckable(True)
             button.setEnabled(False)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.setToolTip(f"Повернуть изображение на {text}")
             button.clicked.connect(
                 lambda checked, value=angle: self._select_rotation(value, checked)
             )
@@ -127,12 +131,16 @@ class SettingsPanel(QWidget):
         self.flip_horizontal_button.setObjectName("toolButton")
         self.flip_horizontal_button.setCheckable(True)
         self.flip_horizontal_button.setEnabled(False)
+        self.flip_horizontal_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.flip_horizontal_button.setToolTip("Отразить слева направо")
         layout.addWidget(self.flip_horizontal_button)
 
         self.flip_vertical_button = QPushButton("↕  По вертикали", self)
         self.flip_vertical_button.setObjectName("toolButton")
         self.flip_vertical_button.setCheckable(True)
         self.flip_vertical_button.setEnabled(False)
+        self.flip_vertical_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.flip_vertical_button.setToolTip("Отразить сверху вниз")
         layout.addWidget(self.flip_vertical_button)
         layout.addStretch()
 

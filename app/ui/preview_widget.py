@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QSizePolicy,
     QStackedLayout,
     QVBoxLayout,
@@ -131,9 +132,21 @@ class PreviewWidget(QWidget):
         layout.setContentsMargins(16, 10, 16, 10)
         layout.setSpacing(6)
 
+        title_layout = QHBoxLayout()
+        title_layout.setContentsMargins(0, 0, 0, 0)
+        title_layout.setSpacing(12)
+
         self._file_name_label = QLabel(info_bar)
         self._file_name_label.setObjectName("fileName")
-        layout.addWidget(self._file_name_label)
+        title_layout.addWidget(self._file_name_label, stretch=1)
+
+        choose_another_button = QPushButton("Другое изображение", info_bar)
+        choose_another_button.setObjectName("compactButton")
+        choose_another_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        choose_another_button.setToolTip("Выбрать новый исходный файл")
+        choose_another_button.clicked.connect(self.drop_zone.open_file_dialog)
+        title_layout.addWidget(choose_another_button)
+        layout.addLayout(title_layout)
 
         details_layout = QHBoxLayout()
         details_layout.setContentsMargins(0, 0, 0, 0)

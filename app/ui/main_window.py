@@ -3,8 +3,8 @@
 import sqlite3
 from pathlib import Path
 
-from PySide6.QtCore import QThreadPool, Qt, Slot
-from PySide6.QtGui import QResizeEvent
+from PySide6.QtCore import QThreadPool, Qt, QUrl, Slot
+from PySide6.QtGui import QDesktopServices, QResizeEvent
 from PIL import Image
 from PySide6.QtWidgets import (
     QFrame,
@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QStatusBar,
     QVBoxLayout,
@@ -54,6 +55,7 @@ class MainWindow(QMainWindow):
         self.result_panel = ResultPanel(self)
         self.result_panel.save_requested.connect(self._save_processed_image)
         self.history_view = HistoryView(self.history_service, self)
+        self.history_view.open_requested.connect(self._open_history_result)
         self.toast = ToastNotification(self)
 
     def _build_interface(self) -> None:
@@ -92,12 +94,16 @@ class MainWindow(QMainWindow):
         self.history_button = QPushButton("История", header)
         self.history_button.setObjectName("historyButton")
         self.history_button.setFlat(True)
+        self.history_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.history_button.setToolTip("Открыть историю обработки")
         self.history_button.clicked.connect(self._show_history)
         layout.addWidget(self.history_button)
 
         settings_button = QPushButton("Настройки", header)
         settings_button.setObjectName("settingsButton")
         settings_button.setFlat(True)
+        settings_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        settings_button.setToolTip("Перейти к настройкам обработки")
         settings_button.clicked.connect(self._focus_settings)
         layout.addWidget(settings_button)
 
@@ -178,9 +184,18 @@ class MainWindow(QMainWindow):
         title_label.setObjectName("settingsTitle")
         layout.addWidget(title_label)
 
-        self.settings_panel = SettingsPanel(settings_card)
+        self.settings_scroll_area = QScrollArea(settings_card)
+        self.settings_scroll_area.setObjectName("settingsScrollArea")
+        self.settings_scroll_area.setWidgetResizable(True)
+        self.settings_scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        self.settings_scroll_area.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+
+        self.settings_panel = SettingsPanel()
         self.settings_panel.processing_requested.connect(self._process_image)
-        layout.addWidget(self.settings_panel, stretch=1)
+        self.settings_scroll_area.setWidget(self.settings_panel)
+        layout.addWidget(self.settings_scroll_area, stretch=1)
         return settings_card
 
     @Slot()
@@ -318,10 +333,29 @@ class MainWindow(QMainWindow):
         self.history_view.show()
         self.history_view.raise_()
 
+    @Slot(str)
+    def _open_history_result(self, output_path: str) -> None:
+        """Open an existing processed image from a history row."""
+        path = Path(output_path)
+        if not path.is_file():
+            message = "Сохранённый файл больше не найден"
+            self.statusBar().showMessage(message, 5000)
+            self.toast.show_message(message, "error")
+            return
+
+        if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.resolve()))):
+            message = "Не удалось открыть сохранённое изображение"
+            self.statusBar().showMessage(message, 5000)
+            self.toast.show_message(message, "error")
+
     @Slot()
     def _focus_settings(self) -> None:
-        """Move keyboard focus to the settings panel."""
-        self.settings_panel.setFocus()
+        """Reveal the first settings controls and move keyboard focus there."""
+        self.settings_scroll_area.verticalScrollBar().setValue(0)
+        if self.settings_panel.width_spin_box.isEnabled():
+            self.settings_panel.width_spin_box.setFocus()
+        else:
+            self.settings_scroll_area.setFocus()
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         """Keep overlay notifications anchored while the window resizes."""

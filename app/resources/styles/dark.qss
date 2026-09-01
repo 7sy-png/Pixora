@@ -162,6 +162,36 @@ QFrame#previewCard {
     background-color: #0e141e;
 }
 
+QScrollArea#settingsScrollArea,
+QScrollArea#settingsScrollArea > QWidget > QWidget {
+    background-color: transparent;
+    border: none;
+}
+
+QScrollBar:vertical {
+    width: 8px;
+    margin: 2px 0;
+    background-color: transparent;
+}
+
+QScrollBar::handle:vertical {
+    min-height: 28px;
+    background-color: #354158;
+    border-radius: 4px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: #4a5870;
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical,
+QScrollBar::add-page:vertical,
+QScrollBar::sub-page:vertical {
+    height: 0;
+    background-color: transparent;
+}
+
 QWidget#previewWidget,
 QWidget#previewPage,
 QLabel#previewImage {
@@ -228,6 +258,20 @@ QPushButton#chooseFileButton:hover {
 
 QPushButton#chooseFileButton:pressed {
     background-color: #17172b;
+    border-color: #7158e8;
+}
+
+QPushButton#compactButton {
+    min-height: 18px;
+    padding: 6px 10px;
+    color: #aab4c3;
+    background-color: #151c28;
+    border-color: #2a3445;
+    font-size: 12px;
+}
+
+QPushButton#compactButton:hover {
+    color: #ffffff;
     border-color: #7158e8;
 }
 

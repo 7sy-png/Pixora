@@ -65,7 +65,7 @@ class DropZoneWidget(QWidget):
         self.choose_file_button = QPushButton("Выбрать изображение", self)
         self.choose_file_button.setObjectName("chooseFileButton")
         self.choose_file_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.choose_file_button.clicked.connect(self._open_file_dialog)
+        self.choose_file_button.clicked.connect(self.open_file_dialog)
         layout.addWidget(
             self.choose_file_button,
             alignment=Qt.AlignmentFlag.AlignHCenter,
@@ -104,7 +104,7 @@ class DropZoneWidget(QWidget):
         return True
 
     @Slot()
-    def _open_file_dialog(self) -> None:
+    def open_file_dialog(self) -> None:
         """Open a native file picker and emit the selected image path."""
         selected_path, _ = QFileDialog.getOpenFileName(
             self,

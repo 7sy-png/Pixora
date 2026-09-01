@@ -56,11 +56,13 @@ class ResultPanel(QDialog):
 
         self.save_button = QPushButton("Сохранить изображение", self)
         self.save_button.setObjectName("saveResultButton")
+        self.save_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.save_button.clicked.connect(self.save_requested)
         actions_layout.addWidget(self.save_button)
 
         close_button = QPushButton("Закрыть", self)
         close_button.setObjectName("secondaryButton")
+        close_button.setCursor(Qt.CursorShape.PointingHandCursor)
         close_button.clicked.connect(self.close)
         actions_layout.addWidget(close_button)
         layout.addLayout(actions_layout)
