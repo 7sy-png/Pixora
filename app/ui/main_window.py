@@ -1,5 +1,6 @@
 """Main application window."""
 
+import sqlite3
 from pathlib import Path
 
 from PySide6.QtCore import QThreadPool, Qt, Slot
@@ -19,12 +20,12 @@ from PySide6.QtWidgets import (
 )
 
 from app.models import ProcessingOptions, ProcessingResult
-from app.ui.preview_widget import PreviewWidget
+from app.services import HistoryService, ImageService
 from app.ui.history_view import HistoryView
+from app.ui.preview_widget import PreviewWidget
 from app.ui.result_panel import ResultPanel
 from app.ui.settings_panel import SettingsPanel
 from app.ui.toast import ToastNotification
-from app.services import HistoryService, ImageService
 from app.workers import ImageWorker
 
 
@@ -293,7 +294,14 @@ class MainWindow(QMainWindow):
             self.result_panel.toast.show_message(str(error), "error")
             return
 
-        self.history_service.record_processing(result, saved_path)
+        try:
+            self.history_service.record_processing(result, saved_path)
+        except sqlite3.Error:
+            self.result_panel.toast.show_message(
+                "Файл сохранён, но историю обновить не удалось",
+                "error",
+            )
+            return
         if self.history_view.isVisible():
             self.history_view.refresh()
 

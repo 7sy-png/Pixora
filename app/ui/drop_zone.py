@@ -17,11 +17,17 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.utils.validation import (
+    ImageValidationError,
+    SUPPORTED_IMAGE_EXTENSIONS,
+    validate_image_file,
+)
+
 
 class DropZoneWidget(QWidget):
     """Accept supported local image files dropped by the user."""
 
-    SUPPORTED_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
+    SUPPORTED_EXTENSIONS = SUPPORTED_IMAGE_EXTENSIONS
     IMAGE_FILTER = "Изображения (*.jpg *.jpeg *.png *.webp)"
     DEFAULT_TITLE = "Перетащите изображение сюда"
     ACTIVE_TITLE = "Отпустите файл здесь"
@@ -65,7 +71,7 @@ class DropZoneWidget(QWidget):
             alignment=Qt.AlignmentFlag.AlignHCenter,
         )
 
-        hint_label = QLabel("JPG · PNG · WEBP", self)
+        hint_label = QLabel("JPG · PNG · WEBP · до 20 МБ", self)
         hint_label.setObjectName("dropHint")
         hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(hint_label)
@@ -73,26 +79,29 @@ class DropZoneWidget(QWidget):
     @classmethod
     def supported_file_from_mime_data(cls, mime_data: QMimeData) -> Path | None:
         """Return the first supported local image from MIME data."""
+        file_path = cls.local_file_from_mime_data(mime_data)
+        if file_path is not None and cls.is_supported_file(file_path):
+            return file_path
+        return None
+
+    @staticmethod
+    def local_file_from_mime_data(mime_data: QMimeData) -> Path | None:
+        """Return the first local file path regardless of image validity."""
         if not mime_data.hasUrls():
             return None
-
         for url in mime_data.urls():
-            if not url.isLocalFile():
-                continue
-
-            file_path = Path(url.toLocalFile())
-            if cls.is_supported_file(file_path):
-                return file_path
-
+            if url.isLocalFile():
+                return Path(url.toLocalFile())
         return None
 
     @classmethod
     def is_supported_file(cls, file_path: Path) -> bool:
         """Check that a path is an existing image with a supported extension."""
-        return (
-            file_path.suffix.lower() in cls.SUPPORTED_EXTENSIONS
-            and file_path.is_file()
-        )
+        try:
+            validate_image_file(file_path, verify_content=False)
+        except ImageValidationError:
+            return False
+        return True
 
     @Slot()
     def _open_file_dialog(self) -> None:
@@ -107,8 +116,10 @@ class DropZoneWidget(QWidget):
             return
 
         file_path = Path(selected_path)
-        if not self.is_supported_file(file_path):
-            self.file_rejected.emit("Поддерживаются только JPG, PNG и WEBP")
+        try:
+            validate_image_file(file_path, verify_content=False)
+        except ImageValidationError as error:
+            self.file_rejected.emit(str(error))
             return
 
         self.file_selected.emit(str(file_path.resolve()))
@@ -142,7 +153,17 @@ class DropZoneWidget(QWidget):
 
         if file_path is None:
             event.ignore()
-            self.file_rejected.emit("Поддерживаются только JPG, PNG и WEBP")
+            local_file = self.local_file_from_mime_data(event.mimeData())
+            if local_file is None:
+                message = "Перетащите локальный файл изображения"
+            else:
+                try:
+                    validate_image_file(local_file, verify_content=False)
+                except ImageValidationError as error:
+                    message = str(error)
+                else:
+                    message = "Не удалось выбрать изображение"
+            self.file_rejected.emit(message)
             return
 
         event.acceptProposedAction()

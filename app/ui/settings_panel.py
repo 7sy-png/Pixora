@@ -18,12 +18,13 @@ from PySide6.QtWidgets import (
 )
 
 from app.models import ImageInfo, ProcessingOptions
+from app.utils.validation import MAX_IMAGE_DIMENSION
 
 
 class SettingsPanel(QWidget):
     """Display editable output dimensions for the selected image."""
 
-    MAX_DIMENSION = 100_000
+    MAX_DIMENSION = MAX_IMAGE_DIMENSION
     processing_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:

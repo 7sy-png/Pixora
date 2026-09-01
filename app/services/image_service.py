@@ -6,6 +6,7 @@ from PIL import Image
 
 from app.models import ProcessingOptions
 from app.processors import CompressProcessor, ProcessorFactory
+from app.utils.validation import validate_image_file, validate_processing_options
 
 
 class ImageService:
@@ -19,7 +20,9 @@ class ImageService:
         options: ProcessingOptions,
     ) -> Image.Image:
         """Process a source file and return a detached Pillow image."""
-        with Image.open(image_path) as source_image:
+        validate_processing_options(options)
+        validated_path = validate_image_file(image_path)
+        with Image.open(validated_path) as source_image:
             source_image.load()
             result = source_image.copy()
 

@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 from app.models import ImageInfo
 from app.ui.drop_zone import DropZoneWidget
 from app.utils.file_utils import format_file_size
+from app.utils.validation import ImageValidationError, validate_image_file
 
 
 class PreviewWidget(QWidget):
@@ -72,12 +73,18 @@ class PreviewWidget(QWidget):
     @Slot(str)
     def load_image(self, file_path: str) -> None:
         """Load an image and switch from the drop zone to preview mode."""
-        source_pixmap = QPixmap(file_path)
+        try:
+            validated_path = validate_image_file(file_path)
+        except ImageValidationError as error:
+            self.file_rejected.emit(str(error))
+            return
+
+        source_pixmap = QPixmap(str(validated_path))
         if source_pixmap.isNull():
             self.file_rejected.emit("Не удалось открыть изображение")
             return
 
-        resolved_path = Path(file_path).resolve()
+        resolved_path = validated_path.resolve()
         suffix = resolved_path.suffix.lower()
         format_name = "JPEG" if suffix in {".jpg", ".jpeg"} else suffix[1:].upper()
 

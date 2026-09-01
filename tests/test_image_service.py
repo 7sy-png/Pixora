@@ -2,6 +2,7 @@
 
 from io import BytesIO
 
+import pytest
 from PIL import Image
 
 from app.models import ProcessingOptions
@@ -56,3 +57,10 @@ def test_image_service_saves_encoded_bytes_without_changes(tmp_path) -> None:
 
     assert saved_path == destination
     assert destination.read_bytes() == encoded_data
+
+
+def test_image_service_reports_save_error_for_missing_directory(tmp_path) -> None:
+    destination = tmp_path / "missing" / "result.png"
+
+    with pytest.raises(OSError):
+        ImageService().save_encoded(b"data", destination)
