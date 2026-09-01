@@ -308,6 +308,17 @@ QSlider::handle:horizontal:hover {
     border-color: #927df2;
 }
 
+QProgressBar#processingIndicator {
+    background-color: #252e3d;
+    border: none;
+    border-radius: 2px;
+}
+
+QProgressBar#processingIndicator::chunk {
+    background-color: #8068ed;
+    border-radius: 2px;
+}
+
 QStatusBar {
     padding: 2px 24px;
     color: #7f8b9d;

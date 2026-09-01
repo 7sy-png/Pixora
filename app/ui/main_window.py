@@ -162,6 +162,9 @@ class MainWindow(QMainWindow):
     @Slot()
     def _process_image(self) -> None:
         """Collect UI settings and run the application service."""
+        if self._active_worker is not None:
+            return
+
         image_info = self.preview_widget.image_info
         if image_info is None:
             return
@@ -174,6 +177,8 @@ class MainWindow(QMainWindow):
         worker.signals.finished.connect(self._handle_processing_finished)
         worker.signals.error.connect(self._handle_processing_error)
         self._active_worker = worker
+        self.settings_panel.set_processing(True)
+        self.statusBar().showMessage("Обработка изображения...")
         self.thread_pool.start(worker)
 
     @Slot(object)
@@ -183,10 +188,12 @@ class MainWindow(QMainWindow):
             self.processed_image.close()
         self.processed_image = processed_image
         self._active_worker = None
+        self.settings_panel.set_processing(False)
         self.statusBar().showMessage("Изображение успешно обработано")
 
     @Slot(str)
     def _handle_processing_error(self, message: str) -> None:
         """Show a worker failure without touching Pillow in the GUI layer."""
         self._active_worker = None
+        self.settings_panel.set_processing(False)
         self.statusBar().showMessage(message, 5000)

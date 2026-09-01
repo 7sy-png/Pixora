@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QSlider,
     QPushButton,
+    QProgressBar,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -141,6 +142,14 @@ class SettingsPanel(QWidget):
         self.process_button.clicked.connect(self.processing_requested)
         layout.addWidget(self.process_button)
 
+        self.processing_indicator = QProgressBar(self)
+        self.processing_indicator.setObjectName("processingIndicator")
+        self.processing_indicator.setRange(0, 0)
+        self.processing_indicator.setTextVisible(False)
+        self.processing_indicator.setFixedHeight(4)
+        self.processing_indicator.hide()
+        layout.addWidget(self.processing_indicator)
+
     def set_image_info(self, image_info: ImageInfo) -> None:
         """Populate dimensions and enable controls for a selected image."""
         self._aspect_ratio = image_info.width / image_info.height
@@ -195,6 +204,16 @@ class SettingsPanel(QWidget):
             flip_horizontal=self.flip_horizontal,
             flip_vertical=self.flip_vertical,
         )
+
+    def set_processing(self, is_processing: bool) -> None:
+        """Toggle the button and indeterminate progress state."""
+        self.process_button.setEnabled(
+            not is_processing and self.width_spin_box.isEnabled()
+        )
+        self.process_button.setText(
+            "Обработка..." if is_processing else "Обработать изображение"
+        )
+        self.processing_indicator.setVisible(is_processing)
 
     @Slot(int)
     def _on_width_changed(self, width: int) -> None:
