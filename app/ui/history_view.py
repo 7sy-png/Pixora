@@ -5,8 +5,10 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
     QHeaderView,
+    QHBoxLayout,
     QLabel,
     QPushButton,
+    QMessageBox,
     QStackedLayout,
     QTableWidget,
     QTableWidgetItem,
@@ -74,10 +76,19 @@ class HistoryView(QDialog):
 
         layout.addWidget(content, stretch=1)
 
+        actions_layout = QHBoxLayout()
+
+        self.clear_button = QPushButton("Очистить историю", self)
+        self.clear_button.setObjectName("dangerButton")
+        self.clear_button.clicked.connect(self._confirm_clear)
+        actions_layout.addWidget(self.clear_button)
+        actions_layout.addStretch()
+
         close_button = QPushButton("Закрыть", self)
         close_button.setObjectName("secondaryButton")
         close_button.clicked.connect(self.close)
-        layout.addWidget(close_button, alignment=Qt.AlignmentFlag.AlignRight)
+        actions_layout.addWidget(close_button)
+        layout.addLayout(actions_layout)
 
     def refresh(self) -> None:
         """Reload history records from the service."""
@@ -86,7 +97,23 @@ class HistoryView(QDialog):
         for row_index, record in enumerate(records):
             self._fill_row(row_index, record)
 
+        self.clear_button.setEnabled(bool(records))
         self._stack.setCurrentWidget(self.table if records else self._empty_label)
+
+    def _confirm_clear(self) -> None:
+        """Ask for confirmation and clear all history records."""
+        answer = QMessageBox.question(
+            self,
+            "Очистить историю?",
+            "Все записи истории будут удалены. Продолжить?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+
+        self.history_service.clear_history()
+        self.refresh()
 
     def _fill_row(self, row_index: int, record: HistoryRecord) -> None:
         """Render one history record into a table row."""

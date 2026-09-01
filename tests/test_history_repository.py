@@ -45,3 +45,14 @@ def test_repository_lists_newest_records_first(tmp_path) -> None:
     records = HistoryRepository(database).list_all()
 
     assert [record.id for record in records] == [second.id, first.id]
+
+
+def test_repository_deletes_all_records(tmp_path) -> None:
+    repository = HistoryRepository(Database(tmp_path / "history.db"))
+    repository.add(make_record("first.png"))
+    repository.add(make_record("second.png"))
+
+    deleted_count = repository.delete_all()
+
+    assert deleted_count == 2
+    assert repository.list_all() == []

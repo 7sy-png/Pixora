@@ -86,6 +86,22 @@ QPushButton#secondaryButton {
     border-color: #354158;
 }
 
+QPushButton#dangerButton {
+    color: #ff9aa4;
+    background-color: #2a171d;
+    border-color: #65303a;
+}
+
+QPushButton#dangerButton:hover {
+    color: #ffffff;
+    background-color: #3a1d25;
+    border-color: #b84c5a;
+}
+
+QMessageBox {
+    background-color: #111722;
+}
+
 QFrame#header {
     background-color: transparent;
     border: none;

@@ -37,3 +37,7 @@ class HistoryService:
     def get_history(self) -> list[HistoryRecord]:
         """Return all history records from newest to oldest."""
         return self.repository.list_all()
+
+    def clear_history(self) -> int:
+        """Remove all processing history records."""
+        return self.repository.delete_all()

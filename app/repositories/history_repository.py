@@ -77,6 +77,12 @@ class HistoryRepository:
             ).fetchall()
         return [self._record_from_row(row) for row in rows]
 
+    def delete_all(self) -> int:
+        """Delete all history records and return the affected row count."""
+        with self.database.connection() as connection:
+            cursor = connection.execute("DELETE FROM processing_history")
+            return cursor.rowcount
+
     @staticmethod
     def _record_from_row(row: sqlite3.Row) -> HistoryRecord:
         """Convert a SQLite row to the domain model."""
