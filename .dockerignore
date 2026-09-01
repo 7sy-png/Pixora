@@ -8,9 +8,7 @@ __pycache__
 .pytest_cache
 .coverage
 htmlcov
-data
 output
 docs
-reports
 *.db
 *.sqlite*

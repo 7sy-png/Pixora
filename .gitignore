@@ -11,10 +11,6 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
-# Local application data
-data/*.db
-data/*.sqlite
-data/*.sqlite3
 output/
 
 # IDE and operating system files
