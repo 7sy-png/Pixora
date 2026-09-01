@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Slot
+from PySide6.QtCore import QThreadPool, Qt, Slot
 from PIL import Image
 from PySide6.QtWidgets import (
     QFrame,
@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 from app.ui.preview_widget import PreviewWidget
 from app.ui.settings_panel import SettingsPanel
 from app.services import ImageService
+from app.workers import ImageWorker
 
 
 class MainWindow(QMainWindow):
@@ -30,7 +31,9 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(960, 640)
         self.resize(1180, 760)
         self.image_service = ImageService()
+        self.thread_pool = QThreadPool(self)
         self.processed_image: Image.Image | None = None
+        self._active_worker: ImageWorker | None = None
 
         self._build_interface()
 
@@ -163,16 +166,27 @@ class MainWindow(QMainWindow):
         if image_info is None:
             return
 
-        try:
-            processed_image = self.image_service.process(
-                image_info.path,
-                self.settings_panel.processing_options(),
-            )
-        except (OSError, ValueError) as error:
-            self.statusBar().showMessage(str(error), 5000)
-            return
+        worker = ImageWorker(
+            self.image_service,
+            image_info.path,
+            self.settings_panel.processing_options(),
+        )
+        worker.signals.finished.connect(self._handle_processing_finished)
+        worker.signals.error.connect(self._handle_processing_error)
+        self._active_worker = worker
+        self.thread_pool.start(worker)
 
+    @Slot(object)
+    def _handle_processing_finished(self, processed_image: Image.Image) -> None:
+        """Store a completed image delivered from the worker thread."""
         if self.processed_image is not None:
             self.processed_image.close()
         self.processed_image = processed_image
+        self._active_worker = None
         self.statusBar().showMessage("Изображение успешно обработано")
+
+    @Slot(str)
+    def _handle_processing_error(self, message: str) -> None:
+        """Show a worker failure without touching Pillow in the GUI layer."""
+        self._active_worker = None
+        self.statusBar().showMessage(message, 5000)
