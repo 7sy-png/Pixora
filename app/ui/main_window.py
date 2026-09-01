@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from PySide6.QtCore import QThreadPool, Qt, Slot
+from PySide6.QtGui import QResizeEvent
 from PIL import Image
 from PySide6.QtWidgets import (
     QFrame,
@@ -21,6 +22,7 @@ from app.models import ProcessingOptions, ProcessingResult
 from app.ui.preview_widget import PreviewWidget
 from app.ui.result_panel import ResultPanel
 from app.ui.settings_panel import SettingsPanel
+from app.ui.toast import ToastNotification
 from app.services import ImageService
 from app.workers import ImageWorker
 
@@ -44,6 +46,7 @@ class MainWindow(QMainWindow):
         self._build_interface()
         self.result_panel = ResultPanel(self)
         self.result_panel.save_requested.connect(self._save_processed_image)
+        self.toast = ToastNotification(self)
 
     def _build_interface(self) -> None:
         """Build the initial layout without image-processing behavior."""
@@ -140,11 +143,13 @@ class MainWindow(QMainWindow):
         )
         if self.preview_widget.image_info is not None:
             self.settings_panel.set_image_info(self.preview_widget.image_info)
+        self.toast.show_message("Изображение загружено", "success", 2000)
 
     @Slot(str)
     def _handle_file_rejected(self, message: str) -> None:
         """Show a short validation message for an unsupported drop."""
         self.statusBar().showMessage(message, 5000)
+        self.toast.show_message(message, "error")
 
     def _create_settings_card(self) -> QFrame:
         """Create the placeholder for processing settings."""
@@ -225,6 +230,10 @@ class MainWindow(QMainWindow):
         self._active_options = None
         self.settings_panel.set_processing(False)
         self.statusBar().showMessage("Изображение успешно обработано")
+        self.result_panel.toast.show_message(
+            "Изображение успешно обработано",
+            "success",
+        )
 
     @Slot(str)
     def _handle_processing_error(self, message: str) -> None:
@@ -233,6 +242,7 @@ class MainWindow(QMainWindow):
         self._active_options = None
         self.settings_panel.set_processing(False)
         self.statusBar().showMessage(message, 5000)
+        self.toast.show_message(message, "error")
 
     @Slot()
     def _save_processed_image(self) -> None:
@@ -270,6 +280,18 @@ class MainWindow(QMainWindow):
             )
         except OSError as error:
             self.statusBar().showMessage(str(error), 5000)
+            self.result_panel.toast.show_message(str(error), "error")
             return
 
         self.statusBar().showMessage(f"Изображение сохранено: {saved_path.name}")
+        self.result_panel.toast.show_message(
+            "Изображение успешно сохранено",
+            "success",
+        )
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        """Keep overlay notifications anchored while the window resizes."""
+        super().resizeEvent(event)
+        toast = getattr(self, "toast", None)
+        if toast is not None and toast.isVisible():
+            toast.reposition()

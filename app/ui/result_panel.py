@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.models import ProcessingResult
+from app.ui.toast import ToastNotification
 from app.utils.file_utils import format_file_size
 
 
@@ -63,6 +64,7 @@ class ResultPanel(QDialog):
         close_button.clicked.connect(self.close)
         actions_layout.addWidget(close_button)
         layout.addLayout(actions_layout)
+        self.toast = ToastNotification(self)
 
     def set_result(self, result: ProcessingResult) -> None:
         """Populate the comparison cards and signed savings message."""

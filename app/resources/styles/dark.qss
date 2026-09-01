@@ -376,3 +376,36 @@ QToolTip {
     border: 1px solid #354158;
     border-radius: 6px;
 }
+
+QFrame#toastNotification {
+    background-color: #171e2a;
+    border: 1px solid #354158;
+    border-radius: 11px;
+}
+
+QFrame#toastNotification[kind="success"] {
+    border-color: #2f8f70;
+}
+
+QFrame#toastNotification[kind="error"] {
+    border-color: #b84c5a;
+}
+
+QLabel#toastIcon {
+    min-width: 20px;
+    color: #aab4c3;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+QFrame#toastNotification[kind="success"] QLabel#toastIcon {
+    color: #55d6a6;
+}
+
+QFrame#toastNotification[kind="error"] QLabel#toastIcon {
+    color: #ff7b88;
+}
+
+QLabel#toastMessage {
+    color: #e6edf7;
+}
