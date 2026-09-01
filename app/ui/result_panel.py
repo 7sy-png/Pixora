@@ -1,6 +1,6 @@
 """Dialog that presents image processing results."""
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QDialog,
     QFrame,
@@ -17,6 +17,8 @@ from app.utils.file_utils import format_file_size
 
 class ResultPanel(QDialog):
     """Compare source and output metadata after successful processing."""
+
+    save_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -48,10 +50,19 @@ class ResultPanel(QDialog):
         layout.addWidget(self._savings_label)
         layout.addStretch()
 
+        actions_layout = QHBoxLayout()
+        actions_layout.addStretch()
+
+        self.save_button = QPushButton("Сохранить изображение", self)
+        self.save_button.setObjectName("saveResultButton")
+        self.save_button.clicked.connect(self.save_requested)
+        actions_layout.addWidget(self.save_button)
+
         close_button = QPushButton("Закрыть", self)
         close_button.setObjectName("secondaryButton")
         close_button.clicked.connect(self.close)
-        layout.addWidget(close_button, alignment=Qt.AlignmentFlag.AlignRight)
+        actions_layout.addWidget(close_button)
+        layout.addLayout(actions_layout)
 
     def set_result(self, result: ProcessingResult) -> None:
         """Populate the comparison cards and signed savings message."""

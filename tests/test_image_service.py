@@ -46,3 +46,13 @@ def test_image_service_does_not_modify_source_file(tmp_path) -> None:
 
     assert source_path.read_bytes() == original_bytes
     result.close()
+
+
+def test_image_service_saves_encoded_bytes_without_changes(tmp_path) -> None:
+    destination = tmp_path / "result.webp"
+    encoded_data = b"already-encoded-image"
+
+    saved_path = ImageService().save_encoded(encoded_data, destination)
+
+    assert saved_path == destination
+    assert destination.read_bytes() == encoded_data

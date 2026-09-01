@@ -6,6 +6,7 @@ from PySide6.QtCore import QThreadPool, Qt, Slot
 from PIL import Image
 from PySide6.QtWidgets import (
     QFrame,
+    QFileDialog,
     QHBoxLayout,
     QLabel,
     QMainWindow,
@@ -42,6 +43,7 @@ class MainWindow(QMainWindow):
 
         self._build_interface()
         self.result_panel = ResultPanel(self)
+        self.result_panel.save_requested.connect(self._save_processed_image)
 
     def _build_interface(self) -> None:
         """Build the initial layout without image-processing behavior."""
@@ -231,3 +233,43 @@ class MainWindow(QMainWindow):
         self._active_options = None
         self.settings_panel.set_processing(False)
         self.statusBar().showMessage(message, 5000)
+
+    @Slot()
+    def _save_processed_image(self) -> None:
+        """Ask for a destination and write the worker's encoded result bytes."""
+        result = self.processing_result
+        if result is None or self.processed_data is None:
+            return
+
+        extensions = {
+            "JPEG": ((".jpg", ".jpeg"), ".jpg", "JPEG (*.jpg *.jpeg)"),
+            "PNG": ((".png",), ".png", "PNG (*.png)"),
+            "WEBP": ((".webp",), ".webp", "WEBP (*.webp)"),
+        }
+        valid_extensions, default_extension, file_filter = extensions[
+            result.output_format
+        ]
+        suggested_name = f"{result.source.path.stem}_pixora{default_extension}"
+        selected_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Сохранить изображение",
+            suggested_name,
+            file_filter,
+        )
+        if not selected_path:
+            return
+
+        destination = Path(selected_path)
+        if destination.suffix.lower() not in valid_extensions:
+            destination = Path(f"{destination}{default_extension}")
+
+        try:
+            saved_path = self.image_service.save_encoded(
+                self.processed_data,
+                destination,
+            )
+        except OSError as error:
+            self.statusBar().showMessage(str(error), 5000)
+            return
+
+        self.statusBar().showMessage(f"Изображение сохранено: {saved_path.name}")

@@ -38,3 +38,9 @@ class ImageService:
     def encode(self, image: Image.Image, options: ProcessingOptions) -> bytes:
         """Encode a processed image using its output format and quality."""
         return CompressProcessor().encode(image, options)
+
+    def save_encoded(self, data: bytes, destination: str | Path) -> Path:
+        """Write already encoded result bytes without recompressing them."""
+        destination_path = Path(destination)
+        destination_path.write_bytes(data)
+        return destination_path
