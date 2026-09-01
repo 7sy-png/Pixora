@@ -34,3 +34,6 @@ def test_history_service_maps_and_persists_processing_result(tmp_path) -> None:
     assert persisted.output_path == Path("C:/output/result.webp")
     assert persisted.saved_percentage == 80.0
     assert service.get_history() == [persisted]
+
+    assert service.clear_history() == 1
+    assert service.get_history() == []

@@ -28,6 +28,11 @@ def test_validate_image_file_rejects_wrong_extension(tmp_path) -> None:
         validate_image_file(file_path)
 
 
+def test_validate_image_file_rejects_missing_file(tmp_path) -> None:
+    with pytest.raises(ImageValidationError, match="не найден"):
+        validate_image_file(tmp_path / "missing.png")
+
+
 def test_validate_image_file_rejects_corrupted_image(tmp_path) -> None:
     file_path = tmp_path / "broken.png"
     file_path.write_bytes(b"not a real png")
@@ -61,3 +66,9 @@ def test_validate_processing_options_rejects_invalid_values(
 ) -> None:
     with pytest.raises(ProcessingValidationError):
         validate_processing_options(options)
+
+
+def test_validate_processing_options_accepts_jpg_alias() -> None:
+    validate_processing_options(
+        ProcessingOptions(100, 50, output_format="jpg", quality=1)
+    )
