@@ -50,6 +50,12 @@ QFrame#previewCard {
     background-color: #0e141e;
 }
 
+QWidget#previewWidget,
+QLabel#previewImage {
+    background-color: transparent;
+    border: none;
+}
+
 QWidget#dropZone {
     background-color: #0b111a;
     border: 2px dashed #303b4e;

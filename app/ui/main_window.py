@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from app.ui.drop_zone import DropZoneWidget
+from app.ui.preview_widget import PreviewWidget
 
 
 class MainWindow(QMainWindow):
@@ -110,10 +110,10 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(preview_card)
         layout.setContentsMargins(20, 20, 20, 20)
 
-        self.drop_zone = DropZoneWidget(preview_card)
-        self.drop_zone.file_selected.connect(self._handle_file_selected)
-        self.drop_zone.file_rejected.connect(self._handle_file_rejected)
-        layout.addWidget(self.drop_zone)
+        self.preview_widget = PreviewWidget(preview_card)
+        self.preview_widget.file_selected.connect(self._handle_file_selected)
+        self.preview_widget.file_rejected.connect(self._handle_file_rejected)
+        layout.addWidget(self.preview_widget)
         return preview_card
 
     @Slot(str)
