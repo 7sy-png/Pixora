@@ -39,6 +39,16 @@ QLabel#settingsTitle {
     font-weight: 600;
 }
 
+QLabel#sectionLabel {
+    color: #cfd7e3;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+QLabel#fieldLabel {
+    color: #8d99ab;
+}
+
 QFrame#previewCard,
 QFrame#settingsCard {
     background-color: #111722;

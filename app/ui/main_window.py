@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.ui.preview_widget import PreviewWidget
+from app.ui.settings_panel import SettingsPanel
 
 
 class MainWindow(QMainWindow):
@@ -122,6 +123,8 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(
             f"Выбрано изображение: {Path(file_path).name}"
         )
+        if self.preview_widget.image_info is not None:
+            self.settings_panel.set_image_info(self.preview_widget.image_info)
 
     @Slot(str)
     def _handle_file_rejected(self, message: str) -> None:
@@ -144,13 +147,6 @@ class MainWindow(QMainWindow):
         title_label.setObjectName("settingsTitle")
         layout.addWidget(title_label)
 
-        placeholder = QLabel(
-            "Параметры обработки появятся здесь после загрузки изображения.",
-            settings_card,
-        )
-        placeholder.setObjectName("settingsPlaceholder")
-        placeholder.setWordWrap(True)
-        placeholder.setAlignment(Qt.AlignmentFlag.AlignTop)
-        layout.addWidget(placeholder)
-        layout.addStretch()
+        self.settings_panel = SettingsPanel(settings_card)
+        layout.addWidget(self.settings_panel, stretch=1)
         return settings_card
