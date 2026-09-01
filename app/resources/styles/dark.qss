@@ -51,9 +51,26 @@ QFrame#previewCard {
 }
 
 QWidget#previewWidget,
+QWidget#previewPage,
 QLabel#previewImage {
     background-color: transparent;
     border: none;
+}
+
+QFrame#fileInfoBar {
+    background-color: #0b111a;
+    border: 1px solid #242d3d;
+    border-radius: 10px;
+}
+
+QLabel#fileName {
+    color: #e6edf7;
+    font-weight: 600;
+}
+
+QLabel#fileDetail {
+    color: #8d99ab;
+    font-size: 13px;
 }
 
 QWidget#dropZone {
