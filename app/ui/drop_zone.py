@@ -2,20 +2,27 @@
 
 from pathlib import Path
 
-from PySide6.QtCore import QMimeData, Qt, Signal
+from PySide6.QtCore import QMimeData, Qt, Signal, Slot
 from PySide6.QtGui import (
     QDragEnterEvent,
     QDragLeaveEvent,
     QDragMoveEvent,
     QDropEvent,
 )
-from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QFileDialog,
+    QLabel,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class DropZoneWidget(QWidget):
     """Accept supported local image files dropped by the user."""
 
     SUPPORTED_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
+    IMAGE_FILTER = "Изображения (*.jpg *.jpeg *.png *.webp)"
     DEFAULT_TITLE = "Перетащите изображение сюда"
     ACTIVE_TITLE = "Отпустите файл здесь"
 
@@ -44,6 +51,20 @@ class DropZoneWidget(QWidget):
         self._title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self._title_label)
 
+        or_label = QLabel("или", self)
+        or_label.setObjectName("dropOrLabel")
+        or_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(or_label)
+
+        self.choose_file_button = QPushButton("Выбрать изображение", self)
+        self.choose_file_button.setObjectName("chooseFileButton")
+        self.choose_file_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.choose_file_button.clicked.connect(self._open_file_dialog)
+        layout.addWidget(
+            self.choose_file_button,
+            alignment=Qt.AlignmentFlag.AlignHCenter,
+        )
+
         hint_label = QLabel("JPG · PNG · WEBP", self)
         hint_label.setObjectName("dropHint")
         hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -60,13 +81,37 @@ class DropZoneWidget(QWidget):
                 continue
 
             file_path = Path(url.toLocalFile())
-            if (
-                file_path.suffix.lower() in cls.SUPPORTED_EXTENSIONS
-                and file_path.is_file()
-            ):
+            if cls.is_supported_file(file_path):
                 return file_path
 
         return None
+
+    @classmethod
+    def is_supported_file(cls, file_path: Path) -> bool:
+        """Check that a path is an existing image with a supported extension."""
+        return (
+            file_path.suffix.lower() in cls.SUPPORTED_EXTENSIONS
+            and file_path.is_file()
+        )
+
+    @Slot()
+    def _open_file_dialog(self) -> None:
+        """Open a native file picker and emit the selected image path."""
+        selected_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Выберите изображение",
+            "",
+            self.IMAGE_FILTER,
+        )
+        if not selected_path:
+            return
+
+        file_path = Path(selected_path)
+        if not self.is_supported_file(file_path):
+            self.file_rejected.emit("Поддерживаются только JPG, PNG и WEBP")
+            return
+
+        self.file_selected.emit(str(file_path.resolve()))
 
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:
         """Accept a drag when it contains a supported local image."""

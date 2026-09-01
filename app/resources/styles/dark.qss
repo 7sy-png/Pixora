@@ -28,7 +28,8 @@ QLabel#pageTitle {
 
 QLabel#pageSubtitle,
 QLabel#settingsPlaceholder,
-QLabel#dropHint {
+QLabel#dropHint,
+QLabel#dropOrLabel {
     color: #8d99ab;
 }
 
@@ -75,6 +76,24 @@ QLabel#dropTitle {
 QWidget#dropZone[dragActive="true"] QLabel#dropIcon,
 QWidget#dropZone[dragActive="true"] QLabel#dropTitle {
     color: #b7a7ff;
+}
+
+QPushButton#chooseFileButton {
+    min-width: 170px;
+    color: #d9e0ea;
+    background-color: #1a2230;
+    border-color: #354158;
+}
+
+QPushButton#chooseFileButton:hover {
+    color: #ffffff;
+    background-color: #24243c;
+    border-color: #8068ed;
+}
+
+QPushButton#chooseFileButton:pressed {
+    background-color: #17172b;
+    border-color: #7158e8;
 }
 
 QPushButton {
