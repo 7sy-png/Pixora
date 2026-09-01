@@ -115,6 +115,22 @@ class SettingsPanel(QWidget):
             self.rotation_buttons[angle] = button
             rotation_layout.addWidget(button)
         layout.addLayout(rotation_layout)
+
+        flip_label = QLabel("Отражение", self)
+        flip_label.setObjectName("sectionLabel")
+        layout.addWidget(flip_label)
+
+        self.flip_horizontal_button = QPushButton("↔  По горизонтали", self)
+        self.flip_horizontal_button.setObjectName("toolButton")
+        self.flip_horizontal_button.setCheckable(True)
+        self.flip_horizontal_button.setEnabled(False)
+        layout.addWidget(self.flip_horizontal_button)
+
+        self.flip_vertical_button = QPushButton("↕  По вертикали", self)
+        self.flip_vertical_button.setObjectName("toolButton")
+        self.flip_vertical_button.setCheckable(True)
+        self.flip_vertical_button.setEnabled(False)
+        layout.addWidget(self.flip_vertical_button)
         layout.addStretch()
 
     def set_image_info(self, image_info: ImageInfo) -> None:
@@ -138,11 +154,25 @@ class SettingsPanel(QWidget):
             with QSignalBlocker(button):
                 button.setChecked(False)
             button.setEnabled(True)
+        for button in (self.flip_horizontal_button, self.flip_vertical_button):
+            with QSignalBlocker(button):
+                button.setChecked(False)
+            button.setEnabled(True)
 
     @property
     def rotation(self) -> int:
         """Return the currently selected clockwise/counter-clockwise angle."""
         return self._rotation
+
+    @property
+    def flip_horizontal(self) -> bool:
+        """Return whether horizontal reflection is selected."""
+        return self.flip_horizontal_button.isChecked()
+
+    @property
+    def flip_vertical(self) -> bool:
+        """Return whether vertical reflection is selected."""
+        return self.flip_vertical_button.isChecked()
 
     @Slot(int)
     def _on_width_changed(self, width: int) -> None:

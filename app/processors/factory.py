@@ -5,6 +5,7 @@ from collections.abc import Callable
 from app.processors.base import ImageProcessor
 from app.processors.compress import CompressProcessor
 from app.processors.convert import ConvertProcessor
+from app.processors.flip import FlipProcessor
 from app.processors.resize import ResizeProcessor
 from app.processors.rotate import RotateProcessor
 
@@ -15,6 +16,7 @@ class ProcessorFactory:
     _creators: dict[str, Callable[[], ImageProcessor]] = {
         "compress": CompressProcessor,
         "convert": ConvertProcessor,
+        "flip": FlipProcessor,
         "resize": ResizeProcessor,
         "rotate": RotateProcessor,
     }
