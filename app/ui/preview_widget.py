@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.models import ImageInfo
 from app.ui.drop_zone import DropZoneWidget
 from app.utils.file_utils import format_file_size
 
@@ -29,7 +30,7 @@ class PreviewWidget(QWidget):
         self.setObjectName("previewWidget")
 
         self._source_pixmap = QPixmap()
-        self._current_file_path: Path | None = None
+        self._image_info: ImageInfo | None = None
 
         self._stack = QStackedLayout(self)
         self._stack.setContentsMargins(0, 0, 0, 0)
@@ -61,7 +62,12 @@ class PreviewWidget(QWidget):
     @property
     def current_file_path(self) -> Path | None:
         """Return the path of the image currently shown in preview."""
-        return self._current_file_path
+        return self._image_info.path if self._image_info is not None else None
+
+    @property
+    def image_info(self) -> ImageInfo | None:
+        """Return metadata for the image currently shown in preview."""
+        return self._image_info
 
     @Slot(str)
     def load_image(self, file_path: str) -> None:
@@ -71,12 +77,23 @@ class PreviewWidget(QWidget):
             self.file_rejected.emit("Не удалось открыть изображение")
             return
 
+        resolved_path = Path(file_path).resolve()
+        suffix = resolved_path.suffix.lower()
+        format_name = "JPEG" if suffix in {".jpg", ".jpeg"} else suffix[1:].upper()
+
         self._source_pixmap = source_pixmap
-        self._current_file_path = Path(file_path)
+        self._image_info = ImageInfo(
+            path=resolved_path,
+            filename=resolved_path.name,
+            format=format_name,
+            width=source_pixmap.width(),
+            height=source_pixmap.height(),
+            size=resolved_path.stat().st_size,
+        )
         self._update_file_info()
         self._stack.setCurrentWidget(self._preview_page)
         self._update_scaled_pixmap()
-        self.file_selected.emit(str(self._current_file_path.resolve()))
+        self.file_selected.emit(str(resolved_path))
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         """Rescale the preview whenever the available area changes."""
@@ -133,18 +150,13 @@ class PreviewWidget(QWidget):
 
     def _update_file_info(self) -> None:
         """Fill the metadata labels for the current source image."""
-        if self._current_file_path is None:
+        if self._image_info is None:
             return
 
-        suffix = self._current_file_path.suffix.lower()
-        format_name = "JPEG" if suffix in {".jpg", ".jpeg"} else suffix[1:].upper()
-
-        self._file_name_label.setText(self._current_file_path.name)
-        self._file_name_label.setToolTip(str(self._current_file_path))
-        self._file_format_label.setText(format_name)
+        self._file_name_label.setText(self._image_info.filename)
+        self._file_name_label.setToolTip(str(self._image_info.path))
+        self._file_format_label.setText(self._image_info.format)
         self._file_resolution_label.setText(
-            f"{self._source_pixmap.width()} × {self._source_pixmap.height()}"
+            f"{self._image_info.width} × {self._image_info.height}"
         )
-        self._file_size_label.setText(
-            format_file_size(self._current_file_path.stat().st_size)
-        )
+        self._file_size_label.setText(format_file_size(self._image_info.size))
