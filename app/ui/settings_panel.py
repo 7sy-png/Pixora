@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QSizePolicy,
     QSlider,
+    QPushButton,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -27,6 +28,7 @@ class SettingsPanel(QWidget):
         super().__init__(parent)
         self.setObjectName("settingsPanel")
         self._aspect_ratio: float | None = None
+        self._rotation = 0
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -93,11 +95,32 @@ class SettingsPanel(QWidget):
         self.quality_slider.setEnabled(False)
         self.quality_slider.valueChanged.connect(self._on_quality_changed)
         layout.addWidget(self.quality_slider)
+
+        rotation_label = QLabel("Поворот", self)
+        rotation_label.setObjectName("sectionLabel")
+        layout.addWidget(rotation_label)
+
+        rotation_layout = QHBoxLayout()
+        rotation_layout.setContentsMargins(0, 0, 0, 0)
+        rotation_layout.setSpacing(8)
+        self.rotation_buttons: dict[int, QPushButton] = {}
+        for angle, text in ((-90, "−90°"), (90, "+90°"), (180, "180°")):
+            button = QPushButton(text, self)
+            button.setObjectName("toolButton")
+            button.setCheckable(True)
+            button.setEnabled(False)
+            button.clicked.connect(
+                lambda checked, value=angle: self._select_rotation(value, checked)
+            )
+            self.rotation_buttons[angle] = button
+            rotation_layout.addWidget(button)
+        layout.addLayout(rotation_layout)
         layout.addStretch()
 
     def set_image_info(self, image_info: ImageInfo) -> None:
         """Populate dimensions and enable controls for a selected image."""
         self._aspect_ratio = image_info.width / image_info.height
+        self._rotation = 0
         with (
             QSignalBlocker(self.width_spin_box),
             QSignalBlocker(self.height_spin_box),
@@ -111,6 +134,15 @@ class SettingsPanel(QWidget):
         self.output_format_combo.setCurrentText(image_info.format)
         self.output_format_combo.setEnabled(True)
         self._update_quality_state(self.output_format_combo.currentText())
+        for button in self.rotation_buttons.values():
+            with QSignalBlocker(button):
+                button.setChecked(False)
+            button.setEnabled(True)
+
+    @property
+    def rotation(self) -> int:
+        """Return the currently selected clockwise/counter-clockwise angle."""
+        return self._rotation
 
     @Slot(int)
     def _on_width_changed(self, width: int) -> None:
@@ -153,6 +185,18 @@ class SettingsPanel(QWidget):
         """Keep the numeric quality indicator in sync with the slider."""
         if self.quality_slider.isEnabled():
             self.quality_value_label.setText(str(quality))
+
+    def _select_rotation(self, angle: int, is_checked: bool) -> None:
+        """Select one rotation button or reset rotation when toggled off."""
+        self._rotation = angle if is_checked else 0
+        if not is_checked:
+            return
+
+        for other_angle, button in self.rotation_buttons.items():
+            if other_angle == angle:
+                continue
+            with QSignalBlocker(button):
+                button.setChecked(False)
 
     def _create_dimension_spin_box(self, object_name: str) -> QSpinBox:
         """Create a consistently configured pixel dimension field."""

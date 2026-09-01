@@ -5,6 +5,7 @@ from app.processors.compress import CompressProcessor
 from app.processors.convert import ConvertProcessor
 from app.processors.factory import ProcessorFactory
 from app.processors.resize import ResizeProcessor
+from app.processors.rotate import RotateProcessor
 
 __all__ = [
     "CompressProcessor",
@@ -12,4 +13,5 @@ __all__ = [
     "ImageProcessor",
     "ProcessorFactory",
     "ResizeProcessor",
+    "RotateProcessor",
 ]

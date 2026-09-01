@@ -138,6 +138,26 @@ QPushButton#chooseFileButton:pressed {
     border-color: #7158e8;
 }
 
+QPushButton#toolButton {
+    min-width: 48px;
+    padding: 8px 10px;
+    color: #aab4c3;
+    background-color: #151c28;
+    border-color: #2a3445;
+    font-weight: 500;
+}
+
+QPushButton#toolButton:hover {
+    color: #ffffff;
+    border-color: #7158e8;
+}
+
+QPushButton#toolButton:checked {
+    color: #ffffff;
+    background-color: #6047d2;
+    border-color: #8068ed;
+}
+
 QPushButton {
     min-height: 22px;
     padding: 10px 16px;
