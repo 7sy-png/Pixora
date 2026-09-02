@@ -12,6 +12,12 @@ DARK_STYLESHEET_PATH = (
 CHECK_ICON_PATH = (
     Path(__file__).resolve().parent.parent / "resources" / "icons" / "check.svg"
 )
+SPIN_UP_ICON_PATH = (
+    Path(__file__).resolve().parent.parent / "resources" / "icons" / "spin-up.svg"
+)
+SPIN_DOWN_ICON_PATH = (
+    Path(__file__).resolve().parent.parent / "resources" / "icons" / "spin-down.svg"
+)
 LOGO_PATH = (
     Path(__file__).resolve().parent.parent / "resources" / "icons" / "pixora-logo.png"
 )
@@ -23,10 +29,17 @@ APP_ICON_PATH = (
 def load_dark_stylesheet() -> str:
     """Load the dark Qt stylesheet from application resources."""
     stylesheet = DARK_STYLESHEET_PATH.read_text(encoding="utf-8")
-    return stylesheet.replace(
-        "__CHECK_ICON_PATH__",
-        f'"{CHECK_ICON_PATH.as_posix()}"',
-    )
+    replacements = {
+        "__CHECK_ICON_PATH__": CHECK_ICON_PATH,
+        "__SPIN_UP_ICON_PATH__": SPIN_UP_ICON_PATH,
+        "__SPIN_DOWN_ICON_PATH__": SPIN_DOWN_ICON_PATH,
+    }
+    for placeholder, resource_path in replacements.items():
+        stylesheet = stylesheet.replace(
+            placeholder,
+            f'"{resource_path.as_posix()}"',
+        )
+    return stylesheet
 
 
 def apply_dark_theme(application: QApplication) -> None:

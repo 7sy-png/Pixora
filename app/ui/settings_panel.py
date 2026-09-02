@@ -3,15 +3,16 @@
 from PySide6.QtCore import QSignalBlocker, Qt, Signal, Slot
 
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QCheckBox,
     QComboBox,
     QFormLayout,
     QHBoxLayout,
     QLabel,
     QSizePolicy,
-    QSlider,
-    QPushButton,
     QProgressBar,
+    QPushButton,
+    QSlider,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -26,6 +27,7 @@ class SettingsPanel(QWidget):
 
     MAX_DIMENSION = MAX_IMAGE_DIMENSION
     processing_requested = Signal()
+    preview_transform_changed = Signal(int, bool, bool)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -35,7 +37,7 @@ class SettingsPanel(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(2, 4, 16, 8)
-        layout.setSpacing(10)
+        layout.setSpacing(8)
 
         section_label = QLabel("Размер", self)
         section_label.setObjectName("sectionLabel")
@@ -44,7 +46,7 @@ class SettingsPanel(QWidget):
         form_layout = QFormLayout()
         form_layout.setContentsMargins(0, 0, 0, 0)
         form_layout.setHorizontalSpacing(14)
-        form_layout.setVerticalSpacing(8)
+        form_layout.setVerticalSpacing(6)
         form_layout.setFieldGrowthPolicy(
             QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
         )
@@ -64,6 +66,32 @@ class SettingsPanel(QWidget):
         self.keep_aspect_checkbox.setEnabled(False)
         self.keep_aspect_checkbox.toggled.connect(self._on_keep_aspect_toggled)
         layout.addWidget(self.keep_aspect_checkbox)
+
+        aspect_presets_layout = QHBoxLayout()
+        aspect_presets_layout.setContentsMargins(0, 0, 0, 0)
+        aspect_presets_layout.setSpacing(6)
+        self.aspect_preset_group = QButtonGroup(self)
+        self.aspect_preset_group.setExclusive(True)
+        self.aspect_preset_buttons: dict[str, QPushButton] = {}
+        for text, ratio in (
+            ("4:3", 4 / 3),
+            ("16:9", 16 / 9),
+            ("3:4", 3 / 4),
+            ("1:1", 1.0),
+        ):
+            button = QPushButton(text, self)
+            button.setObjectName("aspectPresetButton")
+            button.setCheckable(True)
+            button.setEnabled(False)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.setToolTip(f"Установить соотношение сторон {text}")
+            button.clicked.connect(
+                lambda _checked, value=ratio: self._apply_aspect_preset(value)
+            )
+            self.aspect_preset_group.addButton(button)
+            self.aspect_preset_buttons[text] = button
+            aspect_presets_layout.addWidget(button)
+        layout.addLayout(aspect_presets_layout)
 
         format_label = QLabel("Формат", self)
         format_label.setObjectName("sectionLabel")
@@ -121,13 +149,18 @@ class SettingsPanel(QWidget):
         rotation_layout.setContentsMargins(0, 0, 0, 0)
         rotation_layout.setSpacing(8)
         self.rotation_buttons: dict[int, QPushButton] = {}
-        for angle, text in ((-90, "−90°"), (90, "+90°"), (180, "180°")):
+        rotation_options = (
+            (-90, "−90°", "Повернуть влево на 90°"),
+            (90, "+90°", "Повернуть вправо на 90°"),
+            (180, "180°", "Повернуть на 180°"),
+        )
+        for angle, text, tooltip in rotation_options:
             button = QPushButton(text, self)
             button.setObjectName("toolButton")
             button.setCheckable(True)
             button.setEnabled(False)
             button.setCursor(Qt.CursorShape.PointingHandCursor)
-            button.setToolTip(f"Повернуть изображение на {text}")
+            button.setToolTip(tooltip)
             button.clicked.connect(
                 lambda checked, value=angle: self._select_rotation(value, checked)
             )
@@ -145,6 +178,9 @@ class SettingsPanel(QWidget):
         self.flip_horizontal_button.setEnabled(False)
         self.flip_horizontal_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.flip_horizontal_button.setToolTip("Отразить слева направо")
+        self.flip_horizontal_button.toggled.connect(
+            self._emit_preview_transform
+        )
         layout.addWidget(self.flip_horizontal_button)
 
         self.flip_vertical_button = QPushButton("↕  По вертикали", self)
@@ -153,6 +189,7 @@ class SettingsPanel(QWidget):
         self.flip_vertical_button.setEnabled(False)
         self.flip_vertical_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.flip_vertical_button.setToolTip("Отразить сверху вниз")
+        self.flip_vertical_button.toggled.connect(self._emit_preview_transform)
         layout.addWidget(self.flip_vertical_button)
         layout.addStretch()
 
@@ -184,7 +221,12 @@ class SettingsPanel(QWidget):
 
         self.width_spin_box.setEnabled(True)
         self.height_spin_box.setEnabled(True)
+        with QSignalBlocker(self.keep_aspect_checkbox):
+            self.keep_aspect_checkbox.setChecked(True)
         self.keep_aspect_checkbox.setEnabled(True)
+        self._clear_aspect_preset()
+        for button in self.aspect_preset_buttons.values():
+            button.setEnabled(True)
         self.output_format_combo.setCurrentText(image_info.format)
         self.output_format_combo.setEnabled(True)
         self._update_quality_state(self.output_format_combo.currentText())
@@ -197,10 +239,11 @@ class SettingsPanel(QWidget):
                 button.setChecked(False)
             button.setEnabled(True)
         self.process_button.setEnabled(True)
+        self._emit_preview_transform()
 
     @property
     def rotation(self) -> int:
-        """Return the currently selected clockwise/counter-clockwise angle."""
+        """Return clockwise-positive rotation selected in the interface."""
         return self._rotation
 
     @property
@@ -258,9 +301,19 @@ class SettingsPanel(QWidget):
 
     @Slot(bool)
     def _on_keep_aspect_toggled(self, is_checked: bool) -> None:
-        """Restore matching dimensions when aspect locking is enabled."""
+        """Lock the current or selected preset ratio when enabled."""
         if is_checked:
+            if self.aspect_preset_group.checkedButton() is None:
+                self._aspect_ratio = (
+                    self.width_spin_box.value() / self.height_spin_box.value()
+                )
             self._on_width_changed(self.width_spin_box.value())
+            return
+
+        self._clear_aspect_preset()
+        self._aspect_ratio = (
+            self.width_spin_box.value() / self.height_spin_box.value()
+        )
 
     @Slot(str)
     def _update_quality_state(self, output_format: str) -> None:
@@ -283,14 +336,35 @@ class SettingsPanel(QWidget):
     def _select_rotation(self, angle: int, is_checked: bool) -> None:
         """Select one rotation button or reset rotation when toggled off."""
         self._rotation = angle if is_checked else 0
-        if not is_checked:
-            return
+        if is_checked:
+            for other_angle, button in self.rotation_buttons.items():
+                if other_angle == angle:
+                    continue
+                with QSignalBlocker(button):
+                    button.setChecked(False)
+        self._emit_preview_transform()
 
-        for other_angle, button in self.rotation_buttons.items():
-            if other_angle == angle:
-                continue
+    def _apply_aspect_preset(self, ratio: float) -> None:
+        """Apply a common ratio using width as the stable dimension."""
+        self._aspect_ratio = ratio
+        self.keep_aspect_checkbox.setChecked(True)
+        self._on_width_changed(self.width_spin_box.value())
+
+    def _clear_aspect_preset(self) -> None:
+        """Clear the exclusive preset selection programmatically."""
+        self.aspect_preset_group.setExclusive(False)
+        for button in self.aspect_preset_buttons.values():
             with QSignalBlocker(button):
                 button.setChecked(False)
+        self.aspect_preset_group.setExclusive(True)
+
+    def _emit_preview_transform(self, _checked: bool = False) -> None:
+        """Publish current visual transforms for the source preview."""
+        self.preview_transform_changed.emit(
+            self.rotation,
+            self.flip_horizontal,
+            self.flip_vertical,
+        )
 
     def _create_dimension_spin_box(self, object_name: str) -> QSpinBox:
         """Create a consistently configured pixel dimension field."""

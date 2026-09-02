@@ -36,7 +36,7 @@ executable = EXE(
     analysis.binaries,
     analysis.datas,
     [],
-    name="Pixora-v1.0.1-windows-x64",
+    name="Pixora-v1.1.0-windows-x64",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

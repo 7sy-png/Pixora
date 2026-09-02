@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal, Slot
-from PySide6.QtGui import QPixmap, QResizeEvent
+from PySide6.QtGui import QPixmap, QResizeEvent, QTransform
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -33,6 +33,9 @@ class PreviewWidget(QWidget):
 
         self._source_pixmap = QPixmap()
         self._image_info: ImageInfo | None = None
+        self._rotation = 0
+        self._flip_horizontal = False
+        self._flip_vertical = False
 
         self._stack = QStackedLayout(self)
         self._stack.setContentsMargins(0, 0, 0, 0)
@@ -90,6 +93,9 @@ class PreviewWidget(QWidget):
         format_name = "JPEG" if suffix in {".jpg", ".jpeg"} else suffix[1:].upper()
 
         self._source_pixmap = source_pixmap
+        self._rotation = 0
+        self._flip_horizontal = False
+        self._flip_vertical = False
         self._image_info = ImageInfo(
             path=resolved_path,
             filename=resolved_path.name,
@@ -103,6 +109,19 @@ class PreviewWidget(QWidget):
         self._update_scaled_pixmap()
         self.file_selected.emit(str(resolved_path))
 
+    @Slot(int, bool, bool)
+    def set_transform(
+        self,
+        rotation: int,
+        flip_horizontal: bool,
+        flip_vertical: bool,
+    ) -> None:
+        """Preview rotation and reflection without changing the source file."""
+        self._rotation = rotation
+        self._flip_horizontal = flip_horizontal
+        self._flip_vertical = flip_vertical
+        self._update_scaled_pixmap()
+
     def resizeEvent(self, event: QResizeEvent) -> None:
         """Rescale the preview whenever the available area changes."""
         super().resizeEvent(event)
@@ -113,15 +132,32 @@ class PreviewWidget(QWidget):
         if self._source_pixmap.isNull():
             return
 
-        target_size = self._preview_label.size().boundedTo(
-            self._source_pixmap.size()
-        )
-        scaled_pixmap = self._source_pixmap.scaled(
+        preview_pixmap = self._transformed_pixmap()
+        target_size = self._preview_label.size().boundedTo(preview_pixmap.size())
+        scaled_pixmap = preview_pixmap.scaled(
             target_size,
             Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
         )
         self._preview_label.setPixmap(scaled_pixmap)
+
+    def _transformed_pixmap(self) -> QPixmap:
+        """Apply the same visual transform order as the processing pipeline."""
+        pixmap = self._source_pixmap
+        if self._rotation:
+            pixmap = pixmap.transformed(
+                QTransform().rotate(self._rotation),
+                Qt.TransformationMode.FastTransformation,
+            )
+        if self._flip_horizontal or self._flip_vertical:
+            pixmap = pixmap.transformed(
+                QTransform().scale(
+                    -1 if self._flip_horizontal else 1,
+                    -1 if self._flip_vertical else 1,
+                ),
+                Qt.TransformationMode.FastTransformation,
+            )
+        return pixmap
 
     def _create_file_info_bar(self, parent: QWidget) -> QFrame:
         """Create labels for the selected file metadata."""

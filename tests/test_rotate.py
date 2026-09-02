@@ -33,5 +33,27 @@ def test_rotate_rejects_unsupported_angle() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("angle", "expected_pixels"),
+    [
+        (90, [(5, 0, 0), (3, 0, 0), (1, 0, 0)]),
+        (-90, [(2, 0, 0), (4, 0, 0), (6, 0, 0)]),
+    ],
+)
+def test_positive_rotation_is_clockwise(
+    angle: int,
+    expected_pixels: list[tuple[int, int, int]],
+) -> None:
+    source = Image.new("RGB", (2, 3))
+    source.putdata([(value, 0, 0) for value in range(1, 7)])
+
+    result = RotateProcessor().process(
+        source,
+        ProcessingOptions(2, 3, rotation=angle),
+    )
+
+    assert [result.getpixel((x, 0)) for x in range(3)] == expected_pixels
+
+
 def test_factory_creates_rotate_processor() -> None:
     assert isinstance(ProcessorFactory.create("rotate"), RotateProcessor)

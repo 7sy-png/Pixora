@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/7sy-png/Pixora/releases/latest/download/Pixora-v1.0.1-windows-x64.exe">
+  <a href="https://github.com/7sy-png/Pixora/releases/latest/download/Pixora-v1.1.0-windows-x64.exe">
     <strong>Скачать Pixora для Windows</strong>
   </a>
 </p>
@@ -19,10 +19,12 @@
 ## Возможности
 
 - изменение ширины и высоты с сохранением пропорций;
+- пресеты соотношений сторон `4:3`, `16:9`, `3:4` и `1:1`;
 - конвертация между JPEG, PNG и WEBP;
 - настройка качества JPEG и WEBP;
 - поворот на −90°, +90° и 180°;
 - отражение по горизонтали и вертикали;
+- живой предпросмотр поворота и отражения;
 - Drag & Drop и выбор файла через проводник;
 - предпросмотр результата перед сохранением;
 - обработка без зависания интерфейса.
@@ -30,7 +32,7 @@
 ## Скачать и запустить
 
 1. Скачайте
-   [Pixora-v1.0.1-windows-x64.exe](https://github.com/7sy-png/Pixora/releases/latest/download/Pixora-v1.0.1-windows-x64.exe).
+   [Pixora-v1.1.0-windows-x64.exe](https://github.com/7sy-png/Pixora/releases/latest/download/Pixora-v1.1.0-windows-x64.exe).
 2. Запустите файл — установка не требуется.
 3. Выберите изображение и задайте параметры обработки.
 

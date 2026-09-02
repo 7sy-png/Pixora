@@ -10,8 +10,8 @@ class RotateProcessor(ImageProcessor):
     """Rotate images by the right-angle values exposed by the UI."""
 
     _TRANSPOSE_OPERATIONS = {
-        -90: Image.Transpose.ROTATE_270,
-        90: Image.Transpose.ROTATE_90,
+        -90: Image.Transpose.ROTATE_90,
+        90: Image.Transpose.ROTATE_270,
         180: Image.Transpose.ROTATE_180,
     }
 
@@ -20,7 +20,7 @@ class RotateProcessor(ImageProcessor):
         image: Image.Image,
         options: ProcessingOptions,
     ) -> Image.Image:
-        """Return a lossless right-angle rotation of the source image."""
+        """Rotate clockwise for positive and counter-clockwise for negative."""
         if options.rotation == 0:
             return image.copy()
 
