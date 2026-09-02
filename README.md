@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/7sy-png/Pixora/releases/latest/download/Pixora-v1.0.0-windows-x64.exe">
+  <a href="https://github.com/7sy-png/Pixora/releases/latest/download/Pixora-v1.0.1-windows-x64.exe">
     <strong>Скачать Pixora для Windows</strong>
   </a>
 </p>
@@ -30,7 +30,7 @@
 ## Скачать и запустить
 
 1. Скачайте
-   [Pixora-v1.0.0-windows-x64.exe](https://github.com/7sy-png/Pixora/releases/latest/download/Pixora-v1.0.0-windows-x64.exe).
+   [Pixora-v1.0.1-windows-x64.exe](https://github.com/7sy-png/Pixora/releases/latest/download/Pixora-v1.0.1-windows-x64.exe).
 2. Запустите файл — установка не требуется.
 3. Выберите изображение и задайте параметры обработки.
 
