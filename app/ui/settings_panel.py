@@ -28,11 +28,14 @@ class SettingsPanel(QWidget):
     MAX_DIMENSION = MAX_IMAGE_DIMENSION
     processing_requested = Signal()
     preview_transform_changed = Signal(int, bool, bool)
+    preview_dimensions_changed = Signal(int, int)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("settingsPanel")
         self._aspect_ratio: float | None = None
+        self._source_width: int | None = None
+        self._source_height: int | None = None
         self._rotation = 0
 
         layout = QVBoxLayout(self)
@@ -91,6 +94,18 @@ class SettingsPanel(QWidget):
             self.aspect_preset_group.addButton(button)
             self.aspect_preset_buttons[text] = button
             aspect_presets_layout.addWidget(button)
+
+        self.restore_aspect_button = QPushButton("Исходное", self)
+        self.restore_aspect_button.setObjectName("aspectResetButton")
+        self.restore_aspect_button.setEnabled(False)
+        self.restore_aspect_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.restore_aspect_button.setToolTip(
+            "Вернуть исходные размеры и соотношение сторон"
+        )
+        self.restore_aspect_button.clicked.connect(
+            self._restore_source_dimensions
+        )
+        aspect_presets_layout.addWidget(self.restore_aspect_button)
         layout.addLayout(aspect_presets_layout)
 
         format_label = QLabel("Формат", self)
@@ -210,6 +225,8 @@ class SettingsPanel(QWidget):
 
     def set_image_info(self, image_info: ImageInfo) -> None:
         """Populate dimensions and enable controls for a selected image."""
+        self._source_width = image_info.width
+        self._source_height = image_info.height
         self._aspect_ratio = image_info.width / image_info.height
         self._rotation = 0
         with (
@@ -227,6 +244,7 @@ class SettingsPanel(QWidget):
         self._clear_aspect_preset()
         for button in self.aspect_preset_buttons.values():
             button.setEnabled(True)
+        self.restore_aspect_button.setEnabled(True)
         self.output_format_combo.setCurrentText(image_info.format)
         self.output_format_combo.setEnabled(True)
         self._update_quality_state(self.output_format_combo.currentText())
@@ -239,6 +257,7 @@ class SettingsPanel(QWidget):
                 button.setChecked(False)
             button.setEnabled(True)
         self.process_button.setEnabled(True)
+        self._emit_preview_dimensions()
         self._emit_preview_transform()
 
     @property
@@ -282,22 +301,20 @@ class SettingsPanel(QWidget):
     @Slot(int)
     def _on_width_changed(self, width: int) -> None:
         """Recalculate height while preserving the source aspect ratio."""
-        if not self.keep_aspect_checkbox.isChecked() or self._aspect_ratio is None:
-            return
-
-        height = max(1, round(width / self._aspect_ratio))
-        with QSignalBlocker(self.height_spin_box):
-            self.height_spin_box.setValue(height)
+        if self.keep_aspect_checkbox.isChecked() and self._aspect_ratio is not None:
+            height = max(1, round(width / self._aspect_ratio))
+            with QSignalBlocker(self.height_spin_box):
+                self.height_spin_box.setValue(height)
+        self._emit_preview_dimensions()
 
     @Slot(int)
     def _on_height_changed(self, height: int) -> None:
         """Recalculate width while preserving the source aspect ratio."""
-        if not self.keep_aspect_checkbox.isChecked() or self._aspect_ratio is None:
-            return
-
-        width = max(1, round(height * self._aspect_ratio))
-        with QSignalBlocker(self.width_spin_box):
-            self.width_spin_box.setValue(width)
+        if self.keep_aspect_checkbox.isChecked() and self._aspect_ratio is not None:
+            width = max(1, round(height * self._aspect_ratio))
+            with QSignalBlocker(self.width_spin_box):
+                self.width_spin_box.setValue(width)
+        self._emit_preview_dimensions()
 
     @Slot(bool)
     def _on_keep_aspect_toggled(self, is_checked: bool) -> None:
@@ -314,6 +331,7 @@ class SettingsPanel(QWidget):
         self._aspect_ratio = (
             self.width_spin_box.value() / self.height_spin_box.value()
         )
+        self._emit_preview_dimensions()
 
     @Slot(str)
     def _update_quality_state(self, output_format: str) -> None:
@@ -350,6 +368,23 @@ class SettingsPanel(QWidget):
         self.keep_aspect_checkbox.setChecked(True)
         self._on_width_changed(self.width_spin_box.value())
 
+    def _restore_source_dimensions(self) -> None:
+        """Clear a preset and restore the loaded image dimensions."""
+        if self._source_width is None or self._source_height is None:
+            return
+
+        self._clear_aspect_preset()
+        self._aspect_ratio = self._source_width / self._source_height
+        with (
+            QSignalBlocker(self.width_spin_box),
+            QSignalBlocker(self.height_spin_box),
+            QSignalBlocker(self.keep_aspect_checkbox),
+        ):
+            self.width_spin_box.setValue(self._source_width)
+            self.height_spin_box.setValue(self._source_height)
+            self.keep_aspect_checkbox.setChecked(True)
+        self._emit_preview_dimensions()
+
     def _clear_aspect_preset(self) -> None:
         """Clear the exclusive preset selection programmatically."""
         self.aspect_preset_group.setExclusive(False)
@@ -364,6 +399,13 @@ class SettingsPanel(QWidget):
             self.rotation,
             self.flip_horizontal,
             self.flip_vertical,
+        )
+
+    def _emit_preview_dimensions(self) -> None:
+        """Publish output dimensions for the live source preview."""
+        self.preview_dimensions_changed.emit(
+            self.width_spin_box.value(),
+            self.height_spin_box.value(),
         )
 
     def _create_dimension_spin_box(self, object_name: str) -> QSpinBox:

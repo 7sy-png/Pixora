@@ -56,6 +56,7 @@ def main() -> int:
         window.show()
         window.preview_widget.load_image(str(sample_path))
         window.settings_panel.width_spin_box.setValue(960)
+        window.settings_panel.aspect_preset_buttons["1:1"].click()
         window.settings_panel.output_format_combo.setCurrentText("WEBP")
         window.settings_panel.quality_slider.setValue(82)
         application.processEvents()

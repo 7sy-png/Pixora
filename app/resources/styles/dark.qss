@@ -280,7 +280,8 @@ QPushButton#toolButton:checked {
     border-color: #8068ed;
 }
 
-QPushButton#aspectPresetButton {
+QPushButton#aspectPresetButton,
+QPushButton#aspectResetButton {
     min-width: 32px;
     min-height: 20px;
     padding: 5px 7px;
@@ -292,7 +293,8 @@ QPushButton#aspectPresetButton {
     font-weight: 500;
 }
 
-QPushButton#aspectPresetButton:hover {
+QPushButton#aspectPresetButton:hover,
+QPushButton#aspectResetButton:hover {
     color: #ffffff;
     border-color: #7158e8;
 }
@@ -304,6 +306,18 @@ QPushButton#aspectPresetButton:checked {
 }
 
 QPushButton#aspectPresetButton:disabled {
+    color: #667085;
+    background-color: #101620;
+    border-color: #202938;
+}
+
+QPushButton#aspectResetButton:pressed {
+    color: #ffffff;
+    background-color: #6047d2;
+    border-color: #8068ed;
+}
+
+QPushButton#aspectResetButton:disabled {
     color: #667085;
     background-color: #101620;
     border-color: #202938;
@@ -419,6 +433,11 @@ QComboBox:disabled {
 QComboBox::drop-down {
     width: 28px;
     border: none;
+}
+
+QComboBox {
+    min-height: 38px;
+    padding: 0 10px;
 }
 
 QComboBox QAbstractItemView {

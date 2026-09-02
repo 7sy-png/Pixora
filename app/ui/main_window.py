@@ -165,6 +165,9 @@ class MainWindow(QMainWindow):
         self.settings_panel.preview_transform_changed.connect(
             self.preview_widget.set_transform
         )
+        self.settings_panel.preview_dimensions_changed.connect(
+            self.preview_widget.set_output_size
+        )
         self.settings_scroll_area.setWidget(self.settings_panel)
         layout.addWidget(self.settings_scroll_area, stretch=1)
         return settings_card

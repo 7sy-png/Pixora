@@ -50,8 +50,10 @@ from PySide6.QtWidgets import QApplication
 from app.models import ImageInfo
 from app.ui.preview_widget import PreviewWidget
 from app.ui.settings_panel import SettingsPanel
+from app.ui.theme import apply_dark_theme
 
 application = QApplication([])
+apply_dark_theme(application)
 panel = SettingsPanel()
 panel.set_image_info(ImageInfo(Path('image.png'), 'image.png', 'PNG', 16, 9, 64))
 assert panel.output_format_combo.currentText() == 'PNG'
@@ -73,12 +75,28 @@ assert transforms[-1] == (90, False, False)
 panel.flip_horizontal_button.click()
 assert transforms[-1] == (90, True, False)
 
+dimensions = []
+panel.preview_dimensions_changed.connect(lambda *values: dimensions.append(values))
 panel.width_spin_box.setValue(1600)
 panel.aspect_preset_buttons['16:9'].click()
 assert panel.keep_aspect_checkbox.isChecked()
 assert panel.height_spin_box.value() == 900
+assert dimensions[-1] == (1600, 900)
 panel.aspect_preset_buttons['1:1'].click()
 assert panel.height_spin_box.value() == 1600
+panel.restore_aspect_button.click()
+assert panel.aspect_preset_group.checkedButton() is None
+assert panel.keep_aspect_checkbox.isChecked()
+assert (panel.width_spin_box.value(), panel.height_spin_box.value()) == (16, 9)
+assert dimensions[-1] == (16, 9)
+
+panel.show()
+panel.output_format_combo.showPopup()
+application.processEvents()
+popup_view = panel.output_format_combo.view()
+assert popup_view.geometry().top() == 0
+assert popup_view.height() == popup_view.window().height()
+panel.output_format_combo.hidePopup()
 
 preview = PreviewWidget()
 image = QImage(2, 3, QImage.Format.Format_RGB32)
@@ -95,6 +113,11 @@ assert [rotated.pixelColor(x, 0).red() for x in range(3)] == [5, 3, 1]
 preview.set_transform(0, True, False)
 reflected = preview._transformed_pixmap().toImage()
 assert [reflected.pixelColor(x, 0).red() for x in range(2)] == [2, 1]
+
+preview.set_transform(0, False, False)
+preview.set_output_size(16, 9)
+resized = preview._transformed_pixmap().toImage()
+assert (resized.width(), resized.height()) == (16, 9)
 """
     environment = os.environ.copy()
     environment["QT_QPA_PLATFORM"] = "offscreen"

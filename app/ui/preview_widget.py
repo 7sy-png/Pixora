@@ -24,6 +24,7 @@ from app.utils.validation import ImageValidationError, validate_image_file
 class PreviewWidget(QWidget):
     """Switch between the drop zone and a scaled image preview."""
 
+    MAX_RENDER_DIMENSION = 2048
     file_selected = Signal(str)
     file_rejected = Signal(str)
 
@@ -33,6 +34,8 @@ class PreviewWidget(QWidget):
 
         self._source_pixmap = QPixmap()
         self._image_info: ImageInfo | None = None
+        self._output_width: int | None = None
+        self._output_height: int | None = None
         self._rotation = 0
         self._flip_horizontal = False
         self._flip_vertical = False
@@ -93,6 +96,8 @@ class PreviewWidget(QWidget):
         format_name = "JPEG" if suffix in {".jpg", ".jpeg"} else suffix[1:].upper()
 
         self._source_pixmap = source_pixmap
+        self._output_width = source_pixmap.width()
+        self._output_height = source_pixmap.height()
         self._rotation = 0
         self._flip_horizontal = False
         self._flip_vertical = False
@@ -122,6 +127,15 @@ class PreviewWidget(QWidget):
         self._flip_vertical = flip_vertical
         self._update_scaled_pixmap()
 
+    @Slot(int, int)
+    def set_output_size(self, width: int, height: int) -> None:
+        """Preview the exact output proportions without editing the source."""
+        if width < 1 or height < 1:
+            return
+        self._output_width = width
+        self._output_height = height
+        self._update_scaled_pixmap()
+
     def resizeEvent(self, event: QResizeEvent) -> None:
         """Rescale the preview whenever the available area changes."""
         super().resizeEvent(event)
@@ -133,9 +147,8 @@ class PreviewWidget(QWidget):
             return
 
         preview_pixmap = self._transformed_pixmap()
-        target_size = self._preview_label.size().boundedTo(preview_pixmap.size())
         scaled_pixmap = preview_pixmap.scaled(
-            target_size,
+            self._preview_label.size(),
             Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
         )
@@ -143,7 +156,7 @@ class PreviewWidget(QWidget):
 
     def _transformed_pixmap(self) -> QPixmap:
         """Apply the same visual transform order as the processing pipeline."""
-        pixmap = self._source_pixmap
+        pixmap = self._resized_pixmap()
         if self._rotation:
             pixmap = pixmap.transformed(
                 QTransform().rotate(self._rotation),
@@ -158,6 +171,28 @@ class PreviewWidget(QWidget):
                 Qt.TransformationMode.FastTransformation,
             )
         return pixmap
+
+    def _resized_pixmap(self) -> QPixmap:
+        """Render output proportions while keeping preview memory bounded."""
+        if self._output_width is None or self._output_height is None:
+            return self._source_pixmap
+
+        largest_dimension = max(self._output_width, self._output_height)
+        scale = min(1.0, self.MAX_RENDER_DIMENSION / largest_dimension)
+        render_width = max(1, round(self._output_width * scale))
+        render_height = max(1, round(self._output_height * scale))
+        if (
+            render_width == self._source_pixmap.width()
+            and render_height == self._source_pixmap.height()
+        ):
+            return self._source_pixmap
+
+        return self._source_pixmap.scaled(
+            render_width,
+            render_height,
+            Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
 
     def _create_file_info_bar(self, parent: QWidget) -> QFrame:
         """Create labels for the selected file metadata."""
