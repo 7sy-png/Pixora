@@ -15,7 +15,7 @@ def test_release_metadata_uses_application_version() -> None:
         PROJECT_ROOT / "app" / "resources" / "windows-version-info.txt"
     ).read_text(encoding="utf-8")
 
-    assert __version__ == "2.0.0"
+    assert __version__ == "2.0.1"
     assert release_filename in readme
     assert release_filename in windows_metadata
     assert f"StringStruct('ProductVersion', '{__version__}')" in windows_metadata
