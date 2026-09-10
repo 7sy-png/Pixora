@@ -49,6 +49,68 @@ def test_image_service_does_not_modify_source_file(tmp_path) -> None:
     result.close()
 
 
+def test_image_service_processes_uploaded_bytes() -> None:
+    source_buffer = BytesIO()
+    Image.new("RGB", (12, 8), "green").save(source_buffer, format="PNG")
+    options = ProcessingOptions(6, 4, output_format="WEBP", quality=75)
+
+    service = ImageService()
+    result = service.process_bytes(
+        source_buffer.getvalue(),
+        options,
+        filename="source.png",
+    )
+    encoded = service.encode(result, options)
+
+    assert result.size == (6, 4)
+    with Image.open(BytesIO(encoded)) as reopened:
+        assert reopened.format == "WEBP"
+        assert reopened.size == (6, 4)
+    result.close()
+
+
+def test_image_service_fits_batch_image_without_distorting_ratio() -> None:
+    source_buffer = BytesIO()
+    Image.new("RGB", (12, 12), "green").save(source_buffer, format="PNG")
+    options = ProcessingOptions(
+        600,
+        400,
+        keep_aspect_ratio=True,
+        output_format="WEBP",
+    )
+
+    result = ImageService().process_bytes(
+        source_buffer.getvalue(),
+        options,
+        filename="square.png",
+        fit_within_bounds=True,
+    )
+
+    assert result.size == (400, 400)
+    result.close()
+
+
+def test_image_service_allows_exact_batch_dimensions_when_ratio_is_unlocked() -> None:
+    source_buffer = BytesIO()
+    Image.new("RGB", (12, 12), "green").save(source_buffer, format="PNG")
+    options = ProcessingOptions(
+        600,
+        400,
+        keep_aspect_ratio=False,
+        output_format="WEBP",
+    )
+
+    result = ImageService().process_bytes(
+        source_buffer.getvalue(),
+        options,
+        filename="square.png",
+        fit_within_bounds=True,
+    )
+
+    assert result.size == (600, 400)
+    result.close()
+
+
 def test_image_service_saves_encoded_bytes_without_changes(tmp_path) -> None:
     destination = tmp_path / "result.webp"
     encoded_data = b"already-encoded-image"

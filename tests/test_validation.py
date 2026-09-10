@@ -8,6 +8,7 @@ from app.utils.validation import (
     MAX_IMAGE_SIZE_BYTES,
     ImageValidationError,
     ProcessingValidationError,
+    validate_image_bytes,
     validate_image_file,
     validate_processing_options,
 )
@@ -49,6 +50,25 @@ def test_validate_image_file_rejects_file_larger_than_20_mb(tmp_path) -> None:
 
     with pytest.raises(ImageValidationError, match="20 МБ"):
         validate_image_file(file_path, verify_content=False)
+
+
+def test_validate_image_bytes_accepts_supported_image() -> None:
+    from io import BytesIO
+
+    buffer = BytesIO()
+    Image.new("RGB", (10, 10), "blue").save(buffer, format="PNG")
+
+    validate_image_bytes(buffer.getvalue(), filename="upload.png")
+
+
+def test_validate_image_bytes_rejects_corrupted_content() -> None:
+    with pytest.raises(ImageValidationError, match="повреждён"):
+        validate_image_bytes(b"not an image", filename="upload.png")
+
+
+def test_validate_image_bytes_rejects_unsupported_extension() -> None:
+    with pytest.raises(ImageValidationError, match="только JPG"):
+        validate_image_bytes(b"content", filename="upload.gif")
 
 
 @pytest.mark.parametrize(

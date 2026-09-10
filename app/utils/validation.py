@@ -1,6 +1,7 @@
 """Validation rules shared by UI and processing services."""
 
 import warnings
+from io import BytesIO
 from pathlib import Path
 
 from PIL import Image, UnidentifiedImageError
@@ -10,6 +11,8 @@ from app.models import ProcessingOptions
 
 SUPPORTED_IMAGE_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
 MAX_IMAGE_SIZE_BYTES = 20 * 1024 * 1024
+DEFAULT_MAX_BATCH_FILES = 50
+DEFAULT_MAX_BATCH_SIZE_BYTES = 200 * 1024 * 1024
 MAX_IMAGE_DIMENSION = 50_000
 MAX_OUTPUT_PIXELS = 100_000_000
 SUPPORTED_OUTPUT_FORMATS = frozenset({"JPEG", "PNG", "WEBP"})
@@ -63,6 +66,39 @@ def validate_image_file(
         ) from error
 
     return path
+
+
+def validate_image_bytes(
+    data: bytes,
+    *,
+    filename: str | None = None,
+) -> None:
+    """Validate an uploaded image before it enters the distributed pipeline."""
+    if not data:
+        raise ImageValidationError("Файл изображения пуст")
+    if len(data) > MAX_IMAGE_SIZE_BYTES:
+        raise ImageValidationError("Размер файла не должен превышать 20 МБ")
+
+    if filename is not None:
+        suffix = Path(filename).suffix.lower()
+        if suffix not in SUPPORTED_IMAGE_EXTENSIONS:
+            raise ImageValidationError("Поддерживаются только JPG, PNG и WEBP")
+
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(BytesIO(data)) as image:
+                image.verify()
+    except (
+        Image.DecompressionBombError,
+        Image.DecompressionBombWarning,
+        UnidentifiedImageError,
+        OSError,
+        SyntaxError,
+    ) as error:
+        raise ImageValidationError(
+            "Файл повреждён или не является изображением"
+        ) from error
 
 
 def validate_processing_options(options: ProcessingOptions) -> None:
