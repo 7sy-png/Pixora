@@ -35,7 +35,7 @@ class SettingsPanel(QWidget):
         parent: QWidget | None = None,
         *,
         process_button_text: str = "Обработать изображение",
-        format_selection_enabled: bool = True,
+        dimension_controls_enabled: bool = True,
     ) -> None:
         super().__init__(parent)
         self.setObjectName("settingsPanel")
@@ -44,16 +44,17 @@ class SettingsPanel(QWidget):
         self._source_height: int | None = None
         self._rotation = 0
         self._process_button_text = process_button_text
-        self._format_selection_enabled = format_selection_enabled
+        self._dimension_controls_enabled = dimension_controls_enabled
         self._has_image = False
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(2, 4, 16, 8)
         layout.setSpacing(8)
 
-        section_label = QLabel("Размер", self)
-        section_label.setObjectName("sectionLabel")
-        layout.addWidget(section_label)
+        self.size_label = QLabel("Размер", self)
+        self.size_label.setObjectName("sectionLabel")
+        self.size_label.setEnabled(dimension_controls_enabled)
+        layout.addWidget(self.size_label)
 
         form_layout = QFormLayout()
         form_layout.setContentsMargins(0, 0, 0, 0)
@@ -117,9 +118,17 @@ class SettingsPanel(QWidget):
         aspect_presets_layout.addWidget(self.restore_aspect_button)
         layout.addLayout(aspect_presets_layout)
 
+        self.dimensions_unavailable_hint = QLabel(
+            "Размер и пропорции отключены в пакетном режиме",
+            self,
+        )
+        self.dimensions_unavailable_hint.setObjectName("disabledHint")
+        self.dimensions_unavailable_hint.setWordWrap(True)
+        self.dimensions_unavailable_hint.setVisible(not dimension_controls_enabled)
+        layout.addWidget(self.dimensions_unavailable_hint)
+
         self.format_label = QLabel("Формат", self)
         self.format_label.setObjectName("sectionLabel")
-        self.format_label.setEnabled(format_selection_enabled)
         layout.addWidget(self.format_label)
 
         self.output_format_combo = QComboBox(self)
@@ -131,15 +140,6 @@ class SettingsPanel(QWidget):
             self._update_quality_state
         )
         layout.addWidget(self.output_format_combo)
-
-        self.format_unavailable_hint = QLabel(
-            "Выбор формата отключён в пакетном режиме",
-            self,
-        )
-        self.format_unavailable_hint.setObjectName("disabledHint")
-        self.format_unavailable_hint.setWordWrap(True)
-        self.format_unavailable_hint.setVisible(not format_selection_enabled)
-        layout.addWidget(self.format_unavailable_hint)
 
         self.quality_controls = QWidget(self)
         quality_layout = QVBoxLayout(self.quality_controls)
@@ -256,17 +256,17 @@ class SettingsPanel(QWidget):
             self.width_spin_box.setValue(image_info.width)
             self.height_spin_box.setValue(image_info.height)
 
-        self.width_spin_box.setEnabled(True)
-        self.height_spin_box.setEnabled(True)
+        self.width_spin_box.setEnabled(self._dimension_controls_enabled)
+        self.height_spin_box.setEnabled(self._dimension_controls_enabled)
         with QSignalBlocker(self.keep_aspect_checkbox):
             self.keep_aspect_checkbox.setChecked(True)
-        self.keep_aspect_checkbox.setEnabled(True)
+        self.keep_aspect_checkbox.setEnabled(self._dimension_controls_enabled)
         self._clear_aspect_preset()
         for button in self.aspect_preset_buttons.values():
-            button.setEnabled(True)
-        self.restore_aspect_button.setEnabled(True)
+            button.setEnabled(self._dimension_controls_enabled)
+        self.restore_aspect_button.setEnabled(self._dimension_controls_enabled)
         self.output_format_combo.setCurrentText(image_info.format)
-        self.output_format_combo.setEnabled(self._format_selection_enabled)
+        self.output_format_combo.setEnabled(True)
         self._update_quality_state(self.output_format_combo.currentText())
         for button in self.rotation_buttons.values():
             with QSignalBlocker(button):
@@ -311,7 +311,7 @@ class SettingsPanel(QWidget):
     def set_processing(self, is_processing: bool) -> None:
         """Toggle the button and indeterminate progress state."""
         self.process_button.setEnabled(
-            not is_processing and self.width_spin_box.isEnabled()
+            not is_processing and self._has_image
         )
         self.process_button.setText(
             "Обработка..." if is_processing else self._process_button_text
@@ -389,17 +389,9 @@ class SettingsPanel(QWidget):
     def _update_quality_state(self, output_format: str) -> None:
         """Replace the irrelevant PNG slider with a lossless-format hint."""
         is_png = output_format == "PNG"
-        is_available = (
-            self._has_image
-            and self._format_selection_enabled
-            and not is_png
-        )
-        self.quality_controls.setVisible(
-            self._format_selection_enabled and not (self._has_image and is_png)
-        )
-        self.lossless_hint.setVisible(
-            self._format_selection_enabled and self._has_image and is_png
-        )
+        is_available = self._has_image and not is_png
+        self.quality_controls.setVisible(not (self._has_image and is_png))
+        self.lossless_hint.setVisible(self._has_image and is_png)
         self.quality_slider.setEnabled(is_available)
         self.quality_value_label.setEnabled(is_available)
         self.quality_value_label.setText(str(self.quality_slider.value()))

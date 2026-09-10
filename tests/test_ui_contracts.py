@@ -107,13 +107,23 @@ batch.set_files([
 ])
 assert batch.file_list.count() == 2
 assert batch.settings_panel.process_button.text() == 'Запустить обработку'
-assert not batch.settings_panel.output_format_combo.isEnabled()
-assert not batch.settings_panel.quality_slider.isEnabled()
-assert not batch.settings_panel.format_unavailable_hint.isHidden()
+assert not batch.settings_panel.width_spin_box.isEnabled()
+assert not batch.settings_panel.height_spin_box.isEnabled()
+assert not batch.settings_panel.keep_aspect_checkbox.isEnabled()
+assert all(
+    not button.isEnabled()
+    for button in batch.settings_panel.aspect_preset_buttons.values()
+)
+assert not batch.settings_panel.restore_aspect_button.isEnabled()
+assert not batch.settings_panel.dimensions_unavailable_hint.isHidden()
+assert batch.settings_panel.output_format_combo.isEnabled()
+batch.settings_panel.output_format_combo.setCurrentText('WEBP')
+assert batch.settings_panel.quality_slider.isEnabled()
 assert batch.clear_files_button.isEnabled()
 batch.set_processing(True)
 assert batch.cancel_button.isEnabled()
 batch.set_processing(False)
+assert batch.settings_panel.process_button.isEnabled()
 batch.set_batch_created({'jobs': [
     {'job_id': 'job-1'},
     {'job_id': 'job-2'},

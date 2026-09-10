@@ -232,7 +232,7 @@ class BatchPanel(QWidget):
         )
         self.settings_panel = SettingsPanel(
             process_button_text="Запустить обработку",
-            format_selection_enabled=False,
+            dimension_controls_enabled=False,
         )
         self.settings_panel.processing_requested.connect(self._request_processing)
         scroll_area.setWidget(self.settings_panel)
