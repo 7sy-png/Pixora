@@ -30,13 +30,19 @@ class SettingsPanel(QWidget):
     preview_transform_changed = Signal(int, bool, bool)
     preview_dimensions_changed = Signal(int, int)
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        process_button_text: str = "Обработать изображение",
+    ) -> None:
         super().__init__(parent)
         self.setObjectName("settingsPanel")
         self._aspect_ratio: float | None = None
         self._source_width: int | None = None
         self._source_height: int | None = None
         self._rotation = 0
+        self._process_button_text = process_button_text
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(2, 4, 16, 8)
@@ -208,7 +214,7 @@ class SettingsPanel(QWidget):
         layout.addWidget(self.flip_vertical_button)
         layout.addStretch()
 
-        self.process_button = QPushButton("Обработать изображение", self)
+        self.process_button = QPushButton(self._process_button_text, self)
         self.process_button.setObjectName("processButton")
         self.process_button.setEnabled(False)
         self.process_button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -294,9 +300,39 @@ class SettingsPanel(QWidget):
             not is_processing and self.width_spin_box.isEnabled()
         )
         self.process_button.setText(
-            "Обработка..." if is_processing else "Обработать изображение"
+            "Обработка..." if is_processing else self._process_button_text
         )
         self.processing_indicator.setVisible(is_processing)
+
+    def clear_image_info(self) -> None:
+        """Disable controls after the selected image list is cleared."""
+        self._source_width = None
+        self._source_height = None
+        self._aspect_ratio = None
+        self._rotation = 0
+        self._clear_aspect_preset()
+        for widget in (
+            self.width_spin_box,
+            self.height_spin_box,
+            self.keep_aspect_checkbox,
+            self.restore_aspect_button,
+            self.output_format_combo,
+            self.quality_slider,
+            self.flip_horizontal_button,
+            self.flip_vertical_button,
+        ):
+            widget.setEnabled(False)
+        for button in self.aspect_preset_buttons.values():
+            button.setEnabled(False)
+        for button in self.rotation_buttons.values():
+            with QSignalBlocker(button):
+                button.setChecked(False)
+            button.setEnabled(False)
+        for button in (self.flip_horizontal_button, self.flip_vertical_button):
+            with QSignalBlocker(button):
+                button.setChecked(False)
+        self.process_button.setEnabled(False)
+        self.processing_indicator.hide()
 
     @Slot(int)
     def _on_width_changed(self, width: int) -> None:

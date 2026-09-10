@@ -11,7 +11,8 @@ QWidget#centralWidget {
 
 QWidget#contentStack,
 QWidget#workspacePage,
-QWidget#resultPanel {
+QWidget#resultPanel,
+QWidget#batchPanel {
     background-color: transparent;
     border: none;
 }
@@ -27,8 +28,62 @@ QLabel#resultSubtitle {
     font-size: 14px;
 }
 
+QLabel#batchFileCount {
+    color: #f8fafc;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+QListWidget#batchFileList {
+    padding: 6px;
+    color: #c8d0dc;
+    background-color: #090d14;
+    alternate-background-color: #0d131d;
+    border: 1px solid #242d3d;
+    border-radius: 12px;
+    outline: none;
+}
+
+QListWidget#batchFileList::item {
+    min-height: 26px;
+    padding: 7px 10px;
+    border-radius: 7px;
+}
+
+QListWidget#batchFileList::item:selected {
+    color: #ffffff;
+    background-color: #2b2254;
+}
+
+QLabel#batchStatus {
+    color: #8d99ab;
+}
+
+QLabel#batchStatus[kind="error"] {
+    color: #ff9aa4;
+}
+
+QLabel#batchStatus[kind="success"] {
+    color: #55d6a6;
+}
+
+QProgressBar#batchProgress {
+    min-height: 12px;
+    max-height: 12px;
+    color: transparent;
+    background-color: #252e3d;
+    border: none;
+    border-radius: 6px;
+}
+
+QProgressBar#batchProgress::chunk {
+    background-color: #8068ed;
+    border-radius: 6px;
+}
+
 QFrame#resultPreviewCard,
-QFrame#resultDetailsCard {
+QFrame#resultDetailsCard,
+QFrame#batchFileCard {
     background-color: #0e141e;
     border: 1px solid #242d3d;
     border-radius: 18px;
@@ -84,6 +139,12 @@ QPushButton#secondaryButton {
     color: #c8d0dc;
     background-color: #171e2a;
     border-color: #354158;
+}
+
+QPushButton#secondaryButton:disabled {
+    color: #667085;
+    background-color: #1a2130;
+    border-color: #252e3d;
 }
 
 QFrame#header {

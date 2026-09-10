@@ -45,10 +45,13 @@ def test_png_replaces_quality_slider_with_lossless_hint() -> None:
     """Exercise Qt widgets in an isolated offscreen application process."""
     script = """
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from PIL import Image as PillowImage
 from PySide6.QtGui import QColor, QImage, QPixmap
 from PySide6.QtWidgets import QApplication
 from app.models import ImageInfo
 from app.ui.preview_widget import PreviewWidget
+from app.ui.batch_panel import BatchPanel
 from app.ui.settings_panel import SettingsPanel
 from app.ui.theme import apply_dark_theme
 
@@ -89,6 +92,59 @@ assert panel.aspect_preset_group.checkedButton() is None
 assert panel.keep_aspect_checkbox.isChecked()
 assert (panel.width_spin_box.value(), panel.height_spin_box.value()) == (16, 9)
 assert dimensions[-1] == (16, 9)
+
+temporary_directory = TemporaryDirectory()
+first_batch_path = Path(temporary_directory.name) / 'first.png'
+second_batch_path = Path(temporary_directory.name) / 'second.png'
+PillowImage.new('RGB', (16, 9), 'red').save(first_batch_path)
+PillowImage.new('RGB', (16, 9), 'blue').save(second_batch_path)
+batch = BatchPanel()
+batch.set_files([
+    first_batch_path,
+    second_batch_path,
+])
+assert batch.file_list.count() == 2
+assert batch.settings_panel.process_button.text() == 'Запустить обработку'
+assert batch.clear_files_button.isEnabled()
+batch.set_processing(True)
+assert batch.cancel_button.isEnabled()
+batch.set_processing(False)
+batch.set_batch_created({'jobs': [
+    {'job_id': 'job-1'},
+    {'job_id': 'job-2'},
+]})
+batch.finish_batch({
+    'total': 2,
+    'completed': 2,
+    'failed': 0,
+    'progress': 100,
+    'jobs': [
+        {
+            'job_id': 'job-1',
+            'filename': 'first.png',
+            'status': 'SUCCESS',
+            'progress': 100,
+            'worker': 'worker@node-a',
+            'output': {'filename': 'pixora-main_pixora.webp'},
+        },
+        {
+            'job_id': 'job-2',
+            'filename': 'second.png',
+            'status': 'SUCCESS',
+            'progress': 100,
+            'worker': 'worker@node-b',
+            'output': {'filename': 'pixora-result_pixora.webp'},
+        },
+    ],
+})
+assert batch.progress_bar.value() == 100
+assert batch.save_button.isEnabled()
+assert 'worker@node-a' in batch.file_list.item(0).text()
+assert 'worker@node-b' in batch.file_list.item(1).text()
+batch.clear_files()
+assert batch.file_list.count() == 0
+assert not batch.settings_panel.process_button.isEnabled()
+temporary_directory.cleanup()
 
 panel.show()
 panel.output_format_combo.showPopup()

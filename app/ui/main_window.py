@@ -1,5 +1,6 @@
 """Main application window."""
 
+from os import getenv
 from pathlib import Path
 
 from PIL import Image
@@ -11,6 +12,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QPushButton,
     QScrollArea,
     QSizePolicy,
     QStackedWidget,
@@ -20,30 +22,44 @@ from PySide6.QtWidgets import (
 )
 
 from app.models import ProcessingOptions, ProcessingResult
-from app.services import ImageService
+from app.services import DistributedClient, ImageService
+from app.ui.batch_panel import BatchPanel
 from app.ui.preview_widget import PreviewWidget
 from app.ui.result_panel import ResultPanel
 from app.ui.settings_panel import SettingsPanel
 from app.ui.theme import APP_ICON_PATH, LOGO_PATH
-from app.workers import ImageWorker
+from app.workers import (
+    DistributedBatchWorker,
+    DistributedDownloadWorker,
+    ImageWorker,
+)
 
 
 class MainWindow(QMainWindow):
     """Top-level window of the Pixora application."""
 
-    def __init__(self, image_service: ImageService) -> None:
+    def __init__(
+        self,
+        image_service: ImageService,
+        distributed_client: DistributedClient | None = None,
+    ) -> None:
         super().__init__()
         self.setWindowTitle("Pixora")
         self.setWindowIcon(QIcon(str(APP_ICON_PATH)))
         self.setMinimumSize(960, 640)
         self.resize(1180, 760)
         self.image_service = image_service
+        self.distributed_client = distributed_client or DistributedClient(
+            getenv("PIXORA_API_URL", "http://127.0.0.1:8000")
+        )
         self.thread_pool = QThreadPool(self)
         self.processed_image: Image.Image | None = None
         self.processed_data: bytes | None = None
         self.processing_result: ProcessingResult | None = None
         self._active_worker: ImageWorker | None = None
         self._active_options: ProcessingOptions | None = None
+        self._active_batch_worker: DistributedBatchWorker | None = None
+        self._active_download_worker: DistributedDownloadWorker | None = None
 
         self._build_interface()
 
@@ -65,6 +81,11 @@ class MainWindow(QMainWindow):
         self.result_panel.back_requested.connect(self._show_workspace)
         self.content_stack.addWidget(self.workspace_page)
         self.content_stack.addWidget(self.result_panel)
+        self.batch_panel = BatchPanel(self.content_stack)
+        self.batch_panel.processing_requested.connect(self._process_batch)
+        self.batch_panel.save_requested.connect(self._save_batch_results)
+        self.batch_panel.cancel_requested.connect(self._cancel_batch)
+        self.content_stack.addWidget(self.batch_panel)
         main_layout.addWidget(self.content_stack, stretch=1)
 
         self.setCentralWidget(central_widget)
@@ -100,6 +121,12 @@ class MainWindow(QMainWindow):
         brand_label.setObjectName("brandLabel")
         layout.addWidget(brand_label)
         layout.addStretch()
+
+        self.batch_mode_button = QPushButton("Пакетная обработка", header)
+        self.batch_mode_button.setObjectName("secondaryButton")
+        self.batch_mode_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.batch_mode_button.clicked.connect(self._toggle_processing_mode)
+        layout.addWidget(self.batch_mode_button)
         return header
 
     def _create_workspace(self) -> QWidget:
@@ -187,7 +214,7 @@ class MainWindow(QMainWindow):
     @Slot()
     def _process_image(self) -> None:
         """Collect UI settings and run the application service."""
-        if self._active_worker is not None:
+        if self._active_worker is not None or self._active_batch_worker is not None:
             return
 
         image_info = self.preview_widget.image_info
@@ -201,6 +228,7 @@ class MainWindow(QMainWindow):
         self._active_worker = worker
         self._active_options = options
         self.settings_panel.set_processing(True)
+        self.batch_mode_button.setEnabled(False)
         self.statusBar().showMessage("Обработка изображения...")
         self.thread_pool.start(worker)
 
@@ -236,6 +264,7 @@ class MainWindow(QMainWindow):
         self._active_worker = None
         self._active_options = None
         self.settings_panel.set_processing(False)
+        self.batch_mode_button.setEnabled(True)
         self.statusBar().showMessage("Изображение успешно обработано")
 
     @Slot(str)
@@ -244,6 +273,7 @@ class MainWindow(QMainWindow):
         self._active_worker = None
         self._active_options = None
         self.settings_panel.set_processing(False)
+        self.batch_mode_button.setEnabled(True)
         self.statusBar().showMessage(message, 5000)
 
     @Slot()
@@ -295,10 +325,126 @@ class MainWindow(QMainWindow):
         """Return from the inline result page to the existing settings."""
         self.result_panel.clear_status()
         self.content_stack.setCurrentWidget(self.workspace_page)
+        self.batch_mode_button.setText("Пакетная обработка")
         self.statusBar().showMessage("Можно изменить настройки и обработать снова")
+
+    @Slot()
+    def _toggle_processing_mode(self) -> None:
+        """Switch between individual and distributed processing pages."""
+        if self.content_stack.currentWidget() is self.batch_panel:
+            self._show_workspace()
+            return
+        self.content_stack.setCurrentWidget(self.batch_panel)
+        self.batch_mode_button.setText("Обычный режим")
+        self.statusBar().showMessage("Распределённая пакетная обработка")
+
+    @Slot(object, object)
+    def _process_batch(
+        self,
+        image_paths: list[Path],
+        options: ProcessingOptions,
+    ) -> None:
+        """Submit multiple files to the API from a background Qt worker."""
+        if self._active_batch_worker is not None or self._active_worker is not None:
+            return
+        worker = DistributedBatchWorker(
+            self.distributed_client,
+            image_paths,
+            options,
+        )
+        worker.signals.submitted.connect(self.batch_panel.set_batch_created)
+        worker.signals.progress.connect(self.batch_panel.update_batch_status)
+        worker.signals.finished.connect(self._handle_batch_finished)
+        worker.signals.error.connect(self._handle_batch_error)
+        worker.signals.cancelled.connect(self._handle_batch_cancelled)
+        self._active_batch_worker = worker
+        self.batch_panel.set_processing(True)
+        self.batch_mode_button.setEnabled(False)
+        self.statusBar().showMessage("Пакет отправляется в распределённую очередь...")
+        self.thread_pool.start(worker)
+
+    @Slot(object)
+    def _handle_batch_finished(self, response: dict[str, object]) -> None:
+        """Show final batch totals without opening another window."""
+        self._active_batch_worker = None
+        self.batch_panel.finish_batch(response)
+        self.batch_mode_button.setEnabled(True)
+        completed = int(response.get("completed", 0))
+        failed = int(response.get("failed", 0))
+        cancelled = int(response.get("cancelled", 0))
+        self.statusBar().showMessage(
+            f"Пакет завершён: готово {completed}, ошибок {failed}, "
+            f"отменено {cancelled}"
+        )
+
+    @Slot(str)
+    def _handle_batch_error(self, message: str) -> None:
+        """Restore the batch controls after an API or worker failure."""
+        self._active_batch_worker = None
+        self.batch_panel.show_error(message)
+        self.batch_mode_button.setEnabled(True)
+        self.statusBar().showMessage(message, 5000)
+
+    @Slot()
+    def _handle_batch_cancelled(self) -> None:
+        """Restore controls after polling is stopped during application exit."""
+        self._active_batch_worker = None
+        self.batch_panel.set_processing(False)
+        self.batch_mode_button.setEnabled(True)
+        self.statusBar().showMessage("Пакетная обработка отменена")
+
+    @Slot()
+    def _cancel_batch(self) -> None:
+        """Cancel remote pending jobs without blocking the GUI thread."""
+        if self._active_batch_worker is not None:
+            self._active_batch_worker.cancel(remote=True)
+
+    @Slot(object)
+    def _save_batch_results(self, jobs: list[dict[str, object]]) -> None:
+        """Select a directory and download all successful task outputs."""
+        if self._active_download_worker is not None:
+            return
+        selected_directory = QFileDialog.getExistingDirectory(
+            self,
+            "Выберите папку для результатов",
+        )
+        if not selected_directory:
+            return
+
+        worker = DistributedDownloadWorker(
+            self.distributed_client,
+            jobs,
+            Path(selected_directory),
+        )
+        worker.signals.finished.connect(self._handle_batch_saved)
+        worker.signals.error.connect(self._handle_batch_save_error)
+        self._active_download_worker = worker
+        self.batch_panel.save_button.setEnabled(False)
+        self.statusBar().showMessage("Скачивание результатов...")
+        self.thread_pool.start(worker)
+
+    @Slot(object)
+    def _handle_batch_saved(self, saved_paths: list[Path]) -> None:
+        """Confirm that every available result was downloaded."""
+        self._active_download_worker = None
+        if not saved_paths:
+            self.batch_panel.show_error("Нет готовых результатов для сохранения")
+            return
+        self.batch_panel.show_saved(len(saved_paths), saved_paths[0].parent)
+        self.statusBar().showMessage(f"Сохранено файлов: {len(saved_paths)}")
+
+    @Slot(str)
+    def _handle_batch_save_error(self, message: str) -> None:
+        """Expose download errors inline and allow a retry."""
+        self._active_download_worker = None
+        self.batch_panel.show_error(message)
+        self.batch_panel.save_button.setEnabled(True)
+        self.statusBar().showMessage(message, 5000)
 
     def closeEvent(self, event: QCloseEvent) -> None:
         """Release the retained Pillow image before closing the application."""
+        if self._active_batch_worker is not None:
+            self._active_batch_worker.cancel(remote=False)
         if self.processed_image is not None:
             self.processed_image.close()
             self.processed_image = None
