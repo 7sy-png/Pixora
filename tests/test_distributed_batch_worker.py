@@ -3,7 +3,11 @@
 from pathlib import Path
 
 from app.models import ProcessingOptions
-from app.workers import DistributedBatchWorker, DistributedDownloadWorker
+from app.workers import (
+    DistributedBatchWorker,
+    DistributedClusterWorker,
+    DistributedDownloadWorker,
+)
 
 
 class CompletingClient:
@@ -26,6 +30,15 @@ class CompletingClient:
             "jobs": [{"job_id": "job-1", "status": state}],
         }
 
+    def get_cluster_status(self):
+        return {
+            "api": "online",
+            "redis": "online",
+            "minio": "online",
+            "queue_depth": 0,
+            "workers": [],
+        }
+
 
 def test_distributed_worker_polls_until_all_jobs_are_terminal() -> None:
     client = CompletingClient()
@@ -34,13 +47,16 @@ def test_distributed_worker_polls_until_all_jobs_are_terminal() -> None:
         [Path("source.png")],
         ProcessingOptions(10, 10),
         poll_interval_seconds=0,
+        cluster_poll_interval_seconds=0,
     )
     submitted = []
     progress = []
     finished = []
+    cluster = []
     worker.signals.submitted.connect(submitted.append)
     worker.signals.progress.connect(progress.append)
     worker.signals.finished.connect(finished.append)
+    worker.signals.cluster.connect(cluster.append)
 
     worker.run()
 
@@ -50,6 +66,18 @@ def test_distributed_worker_polls_until_all_jobs_are_terminal() -> None:
         "SUCCESS",
     ]
     assert finished[0]["jobs"][0]["status"] == "SUCCESS"
+    assert cluster[-1]["api"] == "online"
+
+
+def test_cluster_worker_fetches_one_snapshot() -> None:
+    client = CompletingClient()
+    worker = DistributedClusterWorker(client)
+    completed = []
+    worker.signals.finished.connect(completed.append)
+
+    worker.run()
+
+    assert completed[0]["redis"] == "online"
 
 
 class CancellingClient:

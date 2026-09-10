@@ -72,6 +72,23 @@ def test_client_reports_connection_error(monkeypatch) -> None:
         client.check_health()
 
 
+def test_client_requests_cluster_status(monkeypatch) -> None:
+    client = DistributedClient()
+    captured = {}
+
+    def fake_open(request):
+        captured["request"] = request
+        return FakeResponse(b'{"api":"online","workers":[]}')
+
+    monkeypatch.setattr(client, "_open", fake_open)
+
+    response = client.get_cluster_status()
+
+    assert response["api"] == "online"
+    assert captured["request"].method == "GET"
+    assert captured["request"].full_url.endswith("/api/v1/cluster")
+
+
 def test_client_requests_batch_cancellation(monkeypatch) -> None:
     client = DistributedClient()
     captured = {}

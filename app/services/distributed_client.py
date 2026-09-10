@@ -43,6 +43,10 @@ class DistributedClient:
         response = self._request_json("GET", "/health")
         return response.get("status") == "ok"
 
+    def get_cluster_status(self) -> dict[str, Any]:
+        """Fetch live infrastructure and Celery worker workload."""
+        return self._request_json("GET", "/api/v1/cluster")
+
     def submit_batch(
         self,
         image_paths: list[str | Path],

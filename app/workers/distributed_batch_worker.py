@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from threading import Event
-from time import sleep
+from time import monotonic, sleep
 
 from PySide6.QtCore import QObject, QRunnable, Signal, Slot
 
@@ -15,6 +15,7 @@ class DistributedBatchSignals(QObject):
 
     submitted = Signal(object)
     progress = Signal(object)
+    cluster = Signal(object)
     finished = Signal(object)
     cancelled = Signal()
     error = Signal(str)
@@ -32,12 +33,14 @@ class DistributedBatchWorker(QRunnable):
         options: ProcessingOptions,
         *,
         poll_interval_seconds: float = 0.5,
+        cluster_poll_interval_seconds: float = 1.5,
     ) -> None:
         super().__init__()
         self.client = client
         self.image_paths = image_paths
         self.options = options
         self.poll_interval_seconds = poll_interval_seconds
+        self.cluster_poll_interval_seconds = cluster_poll_interval_seconds
         self.signals = DistributedBatchSignals()
         self._cancelled = Event()
         self._cancel_remote = True
@@ -57,14 +60,22 @@ class DistributedBatchWorker(QRunnable):
             self.signals.submitted.emit(created)
             batch_id = str(created["batch_id"])
             self._batch_id = batch_id
+            next_cluster_poll = 0.0
 
             while not self._cancelled.is_set():
                 status = self.client.get_batch_status(batch_id)
                 self.signals.progress.emit(status)
+                current_time = monotonic()
+                if current_time >= next_cluster_poll:
+                    self._emit_cluster_status()
+                    next_cluster_poll = (
+                        current_time + self.cluster_poll_interval_seconds
+                    )
                 jobs = status.get("jobs", [])
                 if jobs and all(
                     job.get("status") in self.TERMINAL_STATES for job in jobs
                 ):
+                    self._emit_cluster_status()
                     self.signals.finished.emit(status)
                     return
                 sleep(self.poll_interval_seconds)
@@ -80,6 +91,37 @@ class DistributedBatchWorker(QRunnable):
                 self.signals.error.emit(str(error))
                 return
         self.signals.cancelled.emit()
+
+    def _emit_cluster_status(self) -> None:
+        """Treat monitoring as optional so it cannot fail image processing."""
+        try:
+            status = self.client.get_cluster_status()
+        except Exception:
+            return
+        self.signals.cluster.emit(status)
+
+
+class DistributedClusterSignals(QObject):
+    """Deliver a one-shot cluster refresh to the GUI thread."""
+
+    finished = Signal(object)
+    error = Signal(str)
+
+
+class DistributedClusterWorker(QRunnable):
+    """Load the live cluster snapshot without blocking the Qt event loop."""
+
+    def __init__(self, client: DistributedClient) -> None:
+        super().__init__()
+        self.client = client
+        self.signals = DistributedClusterSignals()
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            self.signals.finished.emit(self.client.get_cluster_status())
+        except Exception as error:
+            self.signals.error.emit(str(error))
 
 
 class DistributedDownloadSignals(QObject):
