@@ -116,6 +116,16 @@ class ResultPanel(QWidget):
         self._status_label.clear()
         self._status_label.hide()
 
+    def clear_result(self) -> None:
+        """Release the hidden preview and metadata for a cleared workspace."""
+        self._source_pixmap = QPixmap()
+        self._preview_label.clear()
+        for labels in (self._source_labels, self._output_labels):
+            for label in labels.values():
+                label.clear()
+        self._savings_label.clear()
+        self.clear_status()
+
     def resizeEvent(self, event: QResizeEvent) -> None:
         """Keep the inline preview fitted to the available area."""
         super().resizeEvent(event)

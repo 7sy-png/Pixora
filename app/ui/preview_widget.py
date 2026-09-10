@@ -27,6 +27,7 @@ class PreviewWidget(QWidget):
     MAX_RENDER_DIMENSION = 2048
     file_selected = Signal(str)
     file_rejected = Signal(str)
+    image_cleared = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -39,6 +40,7 @@ class PreviewWidget(QWidget):
         self._rotation = 0
         self._flip_horizontal = False
         self._flip_vertical = False
+        self._selection_enabled = True
 
         self._stack = QStackedLayout(self)
         self._stack.setContentsMargins(0, 0, 0, 0)
@@ -111,8 +113,41 @@ class PreviewWidget(QWidget):
         )
         self._update_file_info()
         self._stack.setCurrentWidget(self._preview_page)
+        self.set_selection_enabled(self._selection_enabled)
         self._update_scaled_pixmap()
         self.file_selected.emit(str(resolved_path))
+
+    @Slot()
+    def clear_image(self) -> None:
+        """Forget the current image and return to the empty drop zone."""
+        if self._image_info is None:
+            return
+
+        self._source_pixmap = QPixmap()
+        self._image_info = None
+        self._output_width = None
+        self._output_height = None
+        self._rotation = 0
+        self._flip_horizontal = False
+        self._flip_vertical = False
+        self._preview_label.clear()
+        self._file_name_label.clear()
+        self._file_name_label.setToolTip("")
+        self._file_format_label.clear()
+        self._file_resolution_label.clear()
+        self._file_size_label.clear()
+        self.clear_image_button.setEnabled(False)
+        self._stack.setCurrentWidget(self.drop_zone)
+        self.image_cleared.emit()
+
+    def set_selection_enabled(self, enabled: bool) -> None:
+        """Lock image replacement and clearing while processing is active."""
+        self._selection_enabled = enabled
+        self.drop_zone.setEnabled(enabled)
+        self.choose_another_button.setEnabled(enabled)
+        self.clear_image_button.setEnabled(
+            enabled and self._image_info is not None
+        )
 
     @Slot(int, bool, bool)
     def set_transform(
@@ -211,12 +246,20 @@ class PreviewWidget(QWidget):
         self._file_name_label.setObjectName("fileName")
         title_layout.addWidget(self._file_name_label, stretch=1)
 
-        choose_another_button = QPushButton("Другое изображение", info_bar)
-        choose_another_button.setObjectName("compactButton")
-        choose_another_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        choose_another_button.setToolTip("Выбрать новый исходный файл")
-        choose_another_button.clicked.connect(self.drop_zone.open_file_dialog)
-        title_layout.addWidget(choose_another_button)
+        self.choose_another_button = QPushButton("Другое изображение", info_bar)
+        self.choose_another_button.setObjectName("compactButton")
+        self.choose_another_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.choose_another_button.setToolTip("Выбрать новый исходный файл")
+        self.choose_another_button.clicked.connect(self.drop_zone.open_file_dialog)
+        title_layout.addWidget(self.choose_another_button)
+
+        self.clear_image_button = QPushButton("Очистить", info_bar)
+        self.clear_image_button.setObjectName("compactButton")
+        self.clear_image_button.setEnabled(False)
+        self.clear_image_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.clear_image_button.setToolTip("Удалить изображение из рабочего поля")
+        self.clear_image_button.clicked.connect(self.clear_image)
+        title_layout.addWidget(self.clear_image_button)
         layout.addLayout(title_layout)
 
         details_layout = QHBoxLayout()

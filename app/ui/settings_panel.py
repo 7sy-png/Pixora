@@ -35,6 +35,7 @@ class SettingsPanel(QWidget):
         parent: QWidget | None = None,
         *,
         process_button_text: str = "Обработать изображение",
+        format_selection_enabled: bool = True,
     ) -> None:
         super().__init__(parent)
         self.setObjectName("settingsPanel")
@@ -43,6 +44,8 @@ class SettingsPanel(QWidget):
         self._source_height: int | None = None
         self._rotation = 0
         self._process_button_text = process_button_text
+        self._format_selection_enabled = format_selection_enabled
+        self._has_image = False
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(2, 4, 16, 8)
@@ -114,9 +117,10 @@ class SettingsPanel(QWidget):
         aspect_presets_layout.addWidget(self.restore_aspect_button)
         layout.addLayout(aspect_presets_layout)
 
-        format_label = QLabel("Формат", self)
-        format_label.setObjectName("sectionLabel")
-        layout.addWidget(format_label)
+        self.format_label = QLabel("Формат", self)
+        self.format_label.setObjectName("sectionLabel")
+        self.format_label.setEnabled(format_selection_enabled)
+        layout.addWidget(self.format_label)
 
         self.output_format_combo = QComboBox(self)
         self.output_format_combo.setObjectName("outputFormatCombo")
@@ -127,6 +131,15 @@ class SettingsPanel(QWidget):
             self._update_quality_state
         )
         layout.addWidget(self.output_format_combo)
+
+        self.format_unavailable_hint = QLabel(
+            "Выбор формата отключён в пакетном режиме",
+            self,
+        )
+        self.format_unavailable_hint.setObjectName("disabledHint")
+        self.format_unavailable_hint.setWordWrap(True)
+        self.format_unavailable_hint.setVisible(not format_selection_enabled)
+        layout.addWidget(self.format_unavailable_hint)
 
         self.quality_controls = QWidget(self)
         quality_layout = QVBoxLayout(self.quality_controls)
@@ -231,6 +244,7 @@ class SettingsPanel(QWidget):
 
     def set_image_info(self, image_info: ImageInfo) -> None:
         """Populate dimensions and enable controls for a selected image."""
+        self._has_image = True
         self._source_width = image_info.width
         self._source_height = image_info.height
         self._aspect_ratio = image_info.width / image_info.height
@@ -252,7 +266,7 @@ class SettingsPanel(QWidget):
             button.setEnabled(True)
         self.restore_aspect_button.setEnabled(True)
         self.output_format_combo.setCurrentText(image_info.format)
-        self.output_format_combo.setEnabled(True)
+        self.output_format_combo.setEnabled(self._format_selection_enabled)
         self._update_quality_state(self.output_format_combo.currentText())
         for button in self.rotation_buttons.values():
             with QSignalBlocker(button):
@@ -306,6 +320,7 @@ class SettingsPanel(QWidget):
 
     def clear_image_info(self) -> None:
         """Disable controls after the selected image list is cleared."""
+        self._has_image = False
         self._source_width = None
         self._source_height = None
         self._aspect_ratio = None
@@ -333,6 +348,7 @@ class SettingsPanel(QWidget):
                 button.setChecked(False)
         self.process_button.setEnabled(False)
         self.processing_indicator.hide()
+        self._update_quality_state(self.output_format_combo.currentText())
 
     @Slot(int)
     def _on_width_changed(self, width: int) -> None:
@@ -372,11 +388,18 @@ class SettingsPanel(QWidget):
     @Slot(str)
     def _update_quality_state(self, output_format: str) -> None:
         """Replace the irrelevant PNG slider with a lossless-format hint."""
-        has_image = self.output_format_combo.isEnabled()
         is_png = output_format == "PNG"
-        is_available = has_image and not is_png
-        self.quality_controls.setVisible(not (has_image and is_png))
-        self.lossless_hint.setVisible(has_image and is_png)
+        is_available = (
+            self._has_image
+            and self._format_selection_enabled
+            and not is_png
+        )
+        self.quality_controls.setVisible(
+            self._format_selection_enabled and not (self._has_image and is_png)
+        )
+        self.lossless_hint.setVisible(
+            self._format_selection_enabled and self._has_image and is_png
+        )
         self.quality_slider.setEnabled(is_available)
         self.quality_value_label.setEnabled(is_available)
         self.quality_value_label.setText(str(self.quality_slider.value()))

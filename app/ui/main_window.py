@@ -162,6 +162,7 @@ class MainWindow(QMainWindow):
         self.preview_widget = PreviewWidget(preview_card)
         self.preview_widget.file_selected.connect(self._handle_file_selected)
         self.preview_widget.file_rejected.connect(self._handle_file_rejected)
+        self.preview_widget.image_cleared.connect(self._handle_image_cleared)
         layout.addWidget(self.preview_widget)
         return preview_card
 
@@ -217,6 +218,19 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(message, 5000)
 
     @Slot()
+    def _handle_image_cleared(self) -> None:
+        """Reset the individual workspace and release the previous result."""
+        self.settings_panel.clear_image_info()
+        self.result_panel.clear_result()
+        if self.processed_image is not None:
+            self.processed_image.close()
+            self.processed_image = None
+        self.processed_data = None
+        self.processing_result = None
+        self._active_options = None
+        self.statusBar().showMessage("Готово к работе")
+
+    @Slot()
     def _process_image(self) -> None:
         """Collect UI settings and run the application service."""
         if self._active_worker is not None or self._active_batch_worker is not None:
@@ -233,6 +247,7 @@ class MainWindow(QMainWindow):
         self._active_worker = worker
         self._active_options = options
         self.settings_panel.set_processing(True)
+        self.preview_widget.set_selection_enabled(False)
         self.batch_mode_button.setEnabled(False)
         self.statusBar().showMessage("Обработка изображения...")
         self.thread_pool.start(worker)
@@ -269,6 +284,7 @@ class MainWindow(QMainWindow):
         self._active_worker = None
         self._active_options = None
         self.settings_panel.set_processing(False)
+        self.preview_widget.set_selection_enabled(True)
         self.batch_mode_button.setEnabled(True)
         self.statusBar().showMessage("Изображение успешно обработано")
 
@@ -278,6 +294,7 @@ class MainWindow(QMainWindow):
         self._active_worker = None
         self._active_options = None
         self.settings_panel.set_processing(False)
+        self.preview_widget.set_selection_enabled(True)
         self.batch_mode_button.setEnabled(True)
         self.statusBar().showMessage(message, 5000)
 

@@ -50,8 +50,10 @@ from PIL import Image as PillowImage
 from PySide6.QtGui import QColor, QImage, QPixmap
 from PySide6.QtWidgets import QApplication
 from app.models import ImageInfo
+from app.services import ImageService
 from app.ui.preview_widget import PreviewWidget
 from app.ui.batch_panel import BatchPanel
+from app.ui.main_window import MainWindow
 from app.ui.settings_panel import SettingsPanel
 from app.ui.theme import apply_dark_theme
 
@@ -105,6 +107,9 @@ batch.set_files([
 ])
 assert batch.file_list.count() == 2
 assert batch.settings_panel.process_button.text() == 'Запустить обработку'
+assert not batch.settings_panel.output_format_combo.isEnabled()
+assert not batch.settings_panel.quality_slider.isEnabled()
+assert not batch.settings_panel.format_unavailable_hint.isHidden()
 assert batch.clear_files_button.isEnabled()
 batch.set_processing(True)
 assert batch.cancel_button.isEnabled()
@@ -170,6 +175,18 @@ assert 'Worker 2 — 1' in batch.distribution_label.text()
 batch.clear_files()
 assert batch.file_list.count() == 0
 assert not batch.settings_panel.process_button.isEnabled()
+
+main_window = MainWindow(ImageService())
+main_window.preview_widget.load_image(str(first_batch_path))
+assert main_window.preview_widget.image_info is not None
+assert main_window.settings_panel.process_button.isEnabled()
+assert main_window.preview_widget.clear_image_button.isEnabled()
+main_window.preview_widget.clear_image_button.click()
+assert main_window.preview_widget.image_info is None
+assert not main_window.settings_panel.process_button.isEnabled()
+assert main_window.preview_widget._stack.currentWidget() is main_window.preview_widget.drop_zone
+assert main_window.statusBar().currentMessage() == 'Готово к работе'
+main_window.close()
 temporary_directory.cleanup()
 
 panel.show()
