@@ -10,6 +10,12 @@ __pycache__/
 htmlcov/
 .mypy_cache/
 .ruff_cache/
+*.log
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
 
 output/
 
@@ -18,6 +24,8 @@ output/
 .vscode/
 .DS_Store
 Thumbs.db
+docs/*.docx
+docs/~$*
 
 # Build artifacts
 build/
