@@ -30,6 +30,7 @@ from app.ui.settings_panel import SettingsPanel
 from app.ui.theme import APP_ICON_PATH, LOGO_PATH
 from app.workers import (
     DistributedBatchWorker,
+    DistributedClusterWorker,
     DistributedDownloadWorker,
     ImageWorker,
 )
@@ -59,6 +60,7 @@ class MainWindow(QMainWindow):
         self._active_worker: ImageWorker | None = None
         self._active_options: ProcessingOptions | None = None
         self._active_batch_worker: DistributedBatchWorker | None = None
+        self._active_cluster_worker: DistributedClusterWorker | None = None
         self._active_download_worker: DistributedDownloadWorker | None = None
 
         self._build_interface()
@@ -85,6 +87,9 @@ class MainWindow(QMainWindow):
         self.batch_panel.processing_requested.connect(self._process_batch)
         self.batch_panel.save_requested.connect(self._save_batch_results)
         self.batch_panel.cancel_requested.connect(self._cancel_batch)
+        self.batch_panel.cluster_refresh_requested.connect(
+            self._refresh_cluster_status
+        )
         self.content_stack.addWidget(self.batch_panel)
         main_layout.addWidget(self.content_stack, stretch=1)
 
@@ -337,6 +342,29 @@ class MainWindow(QMainWindow):
         self.content_stack.setCurrentWidget(self.batch_panel)
         self.batch_mode_button.setText("Обычный режим")
         self.statusBar().showMessage("Распределённая пакетная обработка")
+        self._refresh_cluster_status()
+
+    @Slot()
+    def _refresh_cluster_status(self) -> None:
+        """Load service and worker state without blocking the GUI thread."""
+        if self._active_cluster_worker is not None:
+            return
+        worker = DistributedClusterWorker(self.distributed_client)
+        worker.signals.finished.connect(self._handle_cluster_status)
+        worker.signals.error.connect(self._handle_cluster_status_error)
+        self._active_cluster_worker = worker
+        self.batch_panel.set_cluster_loading(True)
+        self.thread_pool.start(worker)
+
+    @Slot(object)
+    def _handle_cluster_status(self, response: dict[str, object]) -> None:
+        self._active_cluster_worker = None
+        self.batch_panel.update_cluster_status(response)
+
+    @Slot(str)
+    def _handle_cluster_status_error(self, message: str) -> None:
+        self._active_cluster_worker = None
+        self.batch_panel.show_cluster_error(message)
 
     @Slot(object, object)
     def _process_batch(
@@ -354,6 +382,7 @@ class MainWindow(QMainWindow):
         )
         worker.signals.submitted.connect(self.batch_panel.set_batch_created)
         worker.signals.progress.connect(self.batch_panel.update_batch_status)
+        worker.signals.cluster.connect(self.batch_panel.update_cluster_status)
         worker.signals.finished.connect(self._handle_batch_finished)
         worker.signals.error.connect(self._handle_batch_error)
         worker.signals.cancelled.connect(self._handle_batch_cancelled)

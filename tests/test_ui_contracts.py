@@ -113,6 +113,29 @@ batch.set_batch_created({'jobs': [
     {'job_id': 'job-1'},
     {'job_id': 'job-2'},
 ]})
+batch.update_cluster_status({
+    'api': 'online',
+    'redis': 'online',
+    'minio': 'online',
+    'queue_depth': 2,
+    'workers': [
+        {
+            'worker_id': 'worker@node-a',
+            'status': 'idle',
+            'active_tasks': 0,
+            'active_job_ids': [],
+        },
+        {
+            'worker_id': 'worker@node-b',
+            'status': 'idle',
+            'active_tasks': 0,
+            'active_job_ids': [],
+        },
+    ],
+})
+assert batch.api_node.property('state') == 'online'
+assert batch.redis_node.detail_label.text() == 'В очереди: 2'
+assert len(batch._worker_nodes) == 2
 batch.finish_batch({
     'total': 2,
     'completed': 2,
@@ -139,8 +162,11 @@ batch.finish_batch({
 })
 assert batch.progress_bar.value() == 100
 assert batch.save_button.isEnabled()
-assert 'worker@node-a' in batch.file_list.item(0).text()
-assert 'worker@node-b' in batch.file_list.item(1).text()
+assert 'Worker 1' in batch.file_list.item(0).text()
+assert 'Worker 2' in batch.file_list.item(1).text()
+assert 'worker@node-a' in batch.file_list.item(0).toolTip()
+assert 'Worker 1 — 1' in batch.distribution_label.text()
+assert 'Worker 2 — 1' in batch.distribution_label.text()
 batch.clear_files()
 assert batch.file_list.count() == 0
 assert not batch.settings_panel.process_button.isEnabled()

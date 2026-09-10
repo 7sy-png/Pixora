@@ -1,9 +1,11 @@
 """Single-window interface for distributed batch processing."""
 
 from pathlib import Path
+from time import monotonic
 
 from PIL import Image
 from PySide6.QtCore import Qt, Signal, Slot
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
@@ -29,12 +31,43 @@ from app.utils.validation import (
 )
 
 
+class ClusterNodeWidget(QFrame):
+    """Compact service or worker card used in the live cluster diagram."""
+
+    def __init__(self, title: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("clusterNode")
+        self.setProperty("state", "unknown")
+        self.setMinimumWidth(112)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(2)
+        self.title_label = QLabel(title, self)
+        self.title_label.setObjectName("clusterNodeTitle")
+        self.detail_label = QLabel("Проверка...", self)
+        self.detail_label.setObjectName("clusterNodeDetail")
+        self.detail_label.setWordWrap(True)
+        layout.addWidget(self.title_label)
+        layout.addWidget(self.detail_label)
+
+    def set_state(self, detail: str, state: str) -> None:
+        """Update text and repolish the card after a dynamic state change."""
+        self.setProperty("state", state)
+        self.detail_label.setText(detail)
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+
 class BatchPanel(QWidget):
     """Collect files and visualize execution across remote workers."""
 
     processing_requested = Signal(object, object)
     save_requested = Signal(object)
     cancel_requested = Signal()
+    cluster_refresh_requested = Signal()
+
+    WORKER_COLORS = ("#a78bfa", "#22d3ee", "#f5b85c", "#55d6a6")
+    ACTIVE_STATES = frozenset({"RECEIVED", "STARTED", "PROCESSING", "RETRY"})
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -42,11 +75,18 @@ class BatchPanel(QWidget):
         self._paths: list[Path] = []
         self._items_by_job_id: dict[str, QListWidgetItem] = {}
         self._last_status: dict[str, object] | None = None
+        self._cluster_status: dict[str, object] | None = None
+        self._worker_nodes: dict[str, ClusterNodeWidget] = {}
+        self._worker_display_names: dict[str, str] = {}
+        self._processing = False
+        self._started_at: float | None = None
+        self._elapsed_seconds: float | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 4, 0, 0)
-        layout.setSpacing(16)
+        layout.setSpacing(12)
         layout.addLayout(self._create_heading())
+        layout.addWidget(self._create_cluster_card())
 
         content_layout = QHBoxLayout()
         content_layout.setSpacing(22)
@@ -68,6 +108,68 @@ class BatchPanel(QWidget):
         subtitle.setObjectName("resultSubtitle")
         layout.addWidget(subtitle)
         return layout
+
+    def _create_cluster_card(self) -> QFrame:
+        card = QFrame(self)
+        card.setObjectName("clusterCard")
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(8)
+
+        header = QHBoxLayout()
+        title = QLabel("Живой кластер", card)
+        title.setObjectName("clusterTitle")
+        header.addWidget(title)
+        self.cluster_state_label = QLabel("Получаем состояние сервисов", card)
+        self.cluster_state_label.setObjectName("clusterSummary")
+        header.addWidget(self.cluster_state_label, stretch=1)
+        self.refresh_cluster_button = QPushButton("Обновить", card)
+        self.refresh_cluster_button.setObjectName("compactButton")
+        self.refresh_cluster_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.refresh_cluster_button.clicked.connect(
+            self.cluster_refresh_requested.emit
+        )
+        header.addWidget(self.refresh_cluster_button)
+        layout.addLayout(header)
+
+        flow = QHBoxLayout()
+        flow.setSpacing(8)
+        self.api_node = ClusterNodeWidget("FastAPI", card)
+        flow.addWidget(self.api_node)
+        flow.addWidget(self._cluster_arrow(card))
+        self.redis_node = ClusterNodeWidget("Redis", card)
+        flow.addWidget(self.redis_node)
+        flow.addWidget(self._cluster_arrow(card))
+
+        self.worker_lane = QFrame(card)
+        self.worker_lane.setObjectName("workerLane")
+        self.worker_layout = QHBoxLayout(self.worker_lane)
+        self.worker_layout.setContentsMargins(0, 0, 0, 0)
+        self.worker_layout.setSpacing(8)
+        self.worker_placeholder = ClusterNodeWidget("Workers", self.worker_lane)
+        self.worker_placeholder.set_state("Проверка узлов...", "unknown")
+        self.worker_layout.addWidget(self.worker_placeholder)
+        flow.addWidget(self.worker_lane, stretch=1)
+
+        flow.addWidget(self._cluster_arrow(card))
+        self.minio_node = ClusterNodeWidget("MinIO", card)
+        flow.addWidget(self.minio_node)
+        layout.addLayout(flow)
+
+        self.distribution_label = QLabel(
+            "Здесь будет видно, какой worker получил каждое изображение",
+            card,
+        )
+        self.distribution_label.setObjectName("distributionSummary")
+        layout.addWidget(self.distribution_label)
+        return card
+
+    @staticmethod
+    def _cluster_arrow(parent: QWidget) -> QLabel:
+        arrow = QLabel("→", parent)
+        arrow.setObjectName("clusterArrow")
+        arrow.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        return arrow
 
     def _create_file_card(self) -> QFrame:
         card = QFrame(self)
@@ -162,6 +264,174 @@ class BatchPanel(QWidget):
         layout.addWidget(self.cancel_button)
         return layout
 
+    def set_cluster_loading(self, loading: bool) -> None:
+        """Reflect a one-shot background cluster refresh."""
+        self.refresh_cluster_button.setEnabled(not loading)
+        if loading and self._cluster_status is None:
+            self.cluster_state_label.setText("Проверяем подключение...")
+
+    def update_cluster_status(self, response: dict[str, object]) -> None:
+        """Render a real snapshot returned by the distributed API."""
+        self._cluster_status = response
+        self.refresh_cluster_button.setEnabled(True)
+        api_online = response.get("api") == "online"
+        redis_online = response.get("redis") == "online"
+        minio_online = response.get("minio") == "online"
+        queue_depth = response.get("queue_depth")
+
+        self.api_node.set_state(
+            "Координатор доступен" if api_online else "Нет связи",
+            "online" if api_online else "offline",
+        )
+        queue_text = "Очередь недоступна"
+        if redis_online:
+            queue_text = f"В очереди: {queue_depth if queue_depth is not None else 0}"
+        self.redis_node.set_state(
+            queue_text,
+            "online" if redis_online else "offline",
+        )
+        self.minio_node.set_state(
+            "Хранилище доступно" if minio_online else "Нет связи",
+            "online" if minio_online else "offline",
+        )
+
+        workers = response.get("workers", [])
+        if not isinstance(workers, list):
+            workers = []
+        for worker in workers:
+            if isinstance(worker, dict) and worker.get("worker_id"):
+                self._ensure_worker_node(str(worker["worker_id"]))
+
+        if not self._worker_nodes:
+            self.worker_placeholder.show()
+            self.worker_placeholder.set_state("Нет доступных узлов", "offline")
+        else:
+            self.worker_placeholder.hide()
+        self._refresh_worker_nodes()
+
+        online_services = sum((api_online, redis_online, minio_online))
+        self.cluster_state_label.setText(
+            f"Сервисы: {online_services}/3 · workers онлайн: {len(workers)}"
+        )
+        self.cluster_state_label.setProperty(
+            "state", "online" if online_services == 3 and workers else "warning"
+        )
+        self.cluster_state_label.style().unpolish(self.cluster_state_label)
+        self.cluster_state_label.style().polish(self.cluster_state_label)
+        self._update_distribution_summary()
+
+    def show_cluster_error(self, message: str) -> None:
+        """Keep the processing page usable when monitoring is unavailable."""
+        self.refresh_cluster_button.setEnabled(True)
+        self.cluster_state_label.setText("Не удалось получить состояние кластера")
+        self.cluster_state_label.setToolTip(message)
+        for node in (self.api_node, self.redis_node, self.minio_node):
+            node.set_state("Нет связи", "offline")
+        for node in self._worker_nodes.values():
+            node.set_state("Нет связи", "offline")
+
+    def _ensure_worker_node(self, worker_id: str) -> ClusterNodeWidget:
+        existing = self._worker_nodes.get(worker_id)
+        if existing is not None:
+            return existing
+        number = len(self._worker_nodes) + 1
+        display_name = f"Worker {number}"
+        node = ClusterNodeWidget(display_name, self.worker_lane)
+        node.title_label.setStyleSheet(
+            f"color: {self.WORKER_COLORS[(number - 1) % len(self.WORKER_COLORS)]};"
+        )
+        node.setToolTip(worker_id)
+        self._worker_nodes[worker_id] = node
+        self._worker_display_names[worker_id] = display_name
+        self.worker_layout.addWidget(node)
+        self.worker_placeholder.hide()
+        return node
+
+    def _refresh_worker_nodes(self) -> None:
+        workers = []
+        if self._cluster_status is not None:
+            value = self._cluster_status.get("workers", [])
+            if isinstance(value, list):
+                workers = [item for item in value if isinstance(item, dict)]
+        live_workers = {
+            str(worker.get("worker_id")): worker
+            for worker in workers
+            if worker.get("worker_id")
+        }
+        jobs = self._current_jobs()
+        for job in jobs:
+            worker_id = job.get("worker")
+            if worker_id:
+                self._ensure_worker_node(str(worker_id))
+
+        for worker_id, node in self._worker_nodes.items():
+            assigned = [job for job in jobs if str(job.get("worker", "")) == worker_id]
+            active = [
+                job for job in assigned if str(job.get("status")) in self.ACTIVE_STATES
+            ]
+            completed = sum(job.get("status") == "SUCCESS" for job in assigned)
+            live = live_workers.get(worker_id)
+            if active:
+                filename = str(active[0].get("filename", "изображение"))
+                node.set_state(f"Сейчас: {filename}", "busy")
+            elif live is not None and live.get("status") == "busy":
+                active_tasks = int(live.get("active_tasks", 0))
+                node.set_state(f"Активных задач: {active_tasks}", "busy")
+            elif live is not None:
+                node.set_state(f"Свободен · готово: {completed}", "online")
+            elif self._cluster_status is not None:
+                node.set_state("Нет связи", "offline")
+            else:
+                node.set_state(f"Готово: {completed}", "unknown")
+
+    def _current_jobs(self) -> list[dict[str, object]]:
+        if self._last_status is None:
+            return []
+        jobs = self._last_status.get("jobs", [])
+        if not isinstance(jobs, list):
+            return []
+        return [job for job in jobs if isinstance(job, dict)]
+
+    def _worker_name(self, worker_id: str) -> str:
+        self._ensure_worker_node(worker_id)
+        return self._worker_display_names[worker_id]
+
+    def _worker_color(self, worker_id: str) -> str:
+        self._ensure_worker_node(worker_id)
+        number = list(self._worker_nodes).index(worker_id)
+        return self.WORKER_COLORS[number % len(self.WORKER_COLORS)]
+
+    def _update_distribution_summary(self) -> None:
+        jobs = self._current_jobs()
+        counts: dict[str, int] = {}
+        for job in jobs:
+            worker = job.get("worker")
+            if worker:
+                worker_id = str(worker)
+                counts[worker_id] = counts.get(worker_id, 0) + 1
+
+        if counts:
+            parts = [
+                f"{self._worker_name(worker_id)} — {count}"
+                for worker_id, count in counts.items()
+            ]
+            elapsed = self._elapsed_seconds
+            if self._processing and self._started_at is not None:
+                elapsed = monotonic() - self._started_at
+            if elapsed is not None:
+                parts.append(f"время: {elapsed:.1f} с")
+            self.distribution_label.setText("Распределено: " + " · ".join(parts))
+            return
+
+        if self._cluster_status is not None:
+            queue_depth = self._cluster_status.get("queue_depth")
+            queue_text = queue_depth if queue_depth is not None else "—"
+            workers = self._cluster_status.get("workers", [])
+            worker_count = len(workers) if isinstance(workers, list) else 0
+            self.distribution_label.setText(
+                f"Готово к работе: workers {worker_count} · в очереди {queue_text}"
+            )
+
     @Slot()
     def open_file_dialog(self) -> None:
         """Select and validate multiple independent input images."""
@@ -205,6 +475,7 @@ class BatchPanel(QWidget):
         for path in paths:
             item = QListWidgetItem(f"○  {path.name} — ожидает запуска")
             item.setToolTip(str(path))
+            item.setData(Qt.ItemDataRole.UserRole, str(path))
             self.file_list.addItem(item)
 
         first = paths[0]
@@ -228,9 +499,19 @@ class BatchPanel(QWidget):
         self._show_status("Пакет готов к отправке")
         self.progress_bar.setValue(0)
         self.save_button.setEnabled(False)
+        self._started_at = None
+        self._elapsed_seconds = None
+        self._update_distribution_summary()
 
     def set_processing(self, is_processing: bool) -> None:
         """Lock file selection while a remote batch is active."""
+        was_processing = self._processing
+        self._processing = is_processing
+        if is_processing and not was_processing:
+            self._started_at = monotonic()
+            self._elapsed_seconds = None
+        elif not is_processing and was_processing and self._started_at is not None:
+            self._elapsed_seconds = monotonic() - self._started_at
         self.choose_files_button.setEnabled(not is_processing)
         self.clear_files_button.setEnabled(not is_processing and bool(self._paths))
         self.settings_panel.set_processing(is_processing)
@@ -238,6 +519,7 @@ class BatchPanel(QWidget):
         if is_processing:
             self._show_status("Отправка пакета в очередь...")
             self.save_button.setEnabled(False)
+        self._update_distribution_summary()
 
     def set_batch_created(self, response: dict[str, object]) -> None:
         """Associate visible rows with server-generated task identifiers."""
@@ -298,13 +580,21 @@ class BatchPanel(QWidget):
                 description = f"■  {filename} — отменено"
             elif state == "FAILURE":
                 description = f"✕  {filename} — ошибка"
-            elif state in {"RECEIVED", "STARTED", "PROCESSING", "RETRY"}:
+            elif state in self.ACTIVE_STATES:
                 description = f"◉  {filename} — обрабатывается"
             else:
                 description = f"○  {filename} — в очереди"
             if worker:
-                description = f"{description} · {worker}"
+                worker_id = str(worker)
+                description = f"{description} · {self._worker_name(worker_id)}"
+                item.setForeground(QColor(self._worker_color(worker_id)))
+                source_path = item.data(Qt.ItemDataRole.UserRole) or filename
+                item.setToolTip(f"{source_path}\n{worker_id}")
+            else:
+                item.setForeground(QColor("#c8d0dc"))
             item.setText(description)
+        self._refresh_worker_nodes()
+        self._update_distribution_summary()
 
     def finish_batch(self, response: dict[str, object]) -> None:
         """Unlock controls and expose download when results are available."""
@@ -313,6 +603,8 @@ class BatchPanel(QWidget):
         completed = int(response.get("completed", 0))
         self.save_button.setEnabled(completed > 0)
         self.cancel_button.setEnabled(False)
+        self._refresh_worker_nodes()
+        self._update_distribution_summary()
 
     def show_error(self, message: str) -> None:
         """Show a non-modal error without leaving the batch page."""
@@ -332,7 +624,12 @@ class BatchPanel(QWidget):
         self.save_button.setEnabled(False)
         self.cancel_button.setEnabled(False)
         self.progress_bar.setValue(0)
+        self._processing = False
+        self._started_at = None
+        self._elapsed_seconds = None
         self._show_status("Выберите изображения для пакета")
+        self._refresh_worker_nodes()
+        self._update_distribution_summary()
 
     def show_saved(self, count: int, directory: Path) -> None:
         """Acknowledge a completed multi-file download."""

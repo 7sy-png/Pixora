@@ -28,6 +28,76 @@ QLabel#resultSubtitle {
     font-size: 14px;
 }
 
+QFrame#clusterCard {
+    background-color: #0e141e;
+    border: 1px solid #242d3d;
+    border-radius: 14px;
+}
+
+QLabel#clusterTitle {
+    color: #f8fafc;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+QLabel#clusterSummary,
+QLabel#distributionSummary {
+    color: #8d99ab;
+    font-size: 12px;
+}
+
+QLabel#clusterSummary[state="online"] {
+    color: #55d6a6;
+}
+
+QLabel#clusterSummary[state="warning"] {
+    color: #f5b85c;
+}
+
+QFrame#workerLane {
+    background-color: transparent;
+    border: none;
+}
+
+QFrame#clusterNode {
+    min-height: 44px;
+    background-color: #111925;
+    border: 1px solid #303b4e;
+    border-radius: 10px;
+}
+
+QFrame#clusterNode[state="online"] {
+    background-color: #10231e;
+    border-color: #2f8f70;
+}
+
+QFrame#clusterNode[state="busy"] {
+    background-color: #1b1733;
+    border-color: #8068ed;
+}
+
+QFrame#clusterNode[state="offline"] {
+    background-color: #24151b;
+    border-color: #65303a;
+}
+
+QLabel#clusterNodeTitle {
+    color: #f8fafc;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QLabel#clusterNodeDetail {
+    color: #9ca8b8;
+    font-size: 11px;
+}
+
+QLabel#clusterArrow {
+    color: #5f6c80;
+    font-size: 18px;
+    font-weight: 600;
+}
+
 QLabel#batchFileCount {
     color: #f8fafc;
     font-size: 16px;
