@@ -3,6 +3,7 @@
 from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
+from time import monotonic
 
 from PIL import Image, ImageDraw, ImageOps
 from PySide6.QtWidgets import QApplication
@@ -96,6 +97,73 @@ def main() -> int:
             ).save(batch_source, format="PNG")
             batch_sources.append(batch_source)
         window.batch_panel.set_files(batch_sources)
+        window.batch_panel.set_batch_created(
+            {
+                "jobs": [
+                    {"job_id": "job-1"},
+                    {"job_id": "job-2"},
+                    {"job_id": "job-3"},
+                ]
+            }
+        )
+        window.batch_panel.set_processing(True)
+        window.batch_panel._started_at = monotonic() - 2.4
+        window.batch_panel.update_cluster_status(
+            {
+                "api": "online",
+                "redis": "online",
+                "minio": "online",
+                "queue_depth": 1,
+                "workers": [
+                    {
+                        "worker_id": "worker@container-a",
+                        "status": "busy",
+                        "active_tasks": 1,
+                        "active_job_ids": ["job-2"],
+                    },
+                    {
+                        "worker_id": "worker@container-b",
+                        "status": "busy",
+                        "active_tasks": 1,
+                        "active_job_ids": ["job-3"],
+                    },
+                ],
+            }
+        )
+        window.batch_panel.update_batch_status(
+            {
+                "total": 3,
+                "pending": 0,
+                "processing": 2,
+                "completed": 1,
+                "failed": 0,
+                "cancelled": 0,
+                "progress": 55,
+                "jobs": [
+                    {
+                        "job_id": "job-1",
+                        "filename": "aurora-demo.png",
+                        "status": "SUCCESS",
+                        "progress": 100,
+                        "worker": "worker@container-a",
+                    },
+                    {
+                        "job_id": "job-2",
+                        "filename": "aurora-demo-2.png",
+                        "status": "PROCESSING",
+                        "progress": 45,
+                        "worker": "worker@container-a",
+                    },
+                    {
+                        "job_id": "job-3",
+                        "filename": "aurora-demo-3.png",
+                        "status": "PROCESSING",
+                        "progress": 20,
+                        "worker": "worker@container-b",
+                    },
+                ],
+            }
+        )
         window.content_stack.setCurrentWidget(window.batch_panel)
         window.batch_mode_button.setText("Обычный режим")
         application.processEvents()
