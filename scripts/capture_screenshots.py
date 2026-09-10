@@ -40,7 +40,7 @@ def create_showcase_image(destination: Path) -> None:
 
 
 def main() -> int:
-    """Render the workspace and inline result states into PNG files."""
+    """Render workspace, result and distributed batch states into PNG files."""
     SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
     application = QApplication.instance() or QApplication([])
     apply_dark_theme(application)
@@ -85,6 +85,21 @@ def main() -> int:
         window.content_stack.setCurrentWidget(window.result_panel)
         application.processEvents()
         window.grab().save(str(SCREENSHOT_DIR / "pixora-result.png"))
+
+        batch_sources = [sample_path]
+        for index, size in enumerate(((900, 900), (800, 1200)), start=2):
+            batch_source = temporary_path / f"aurora-demo-{index}.png"
+            Image.new(
+                "RGB",
+                size,
+                (45 + index * 35, 55, 130 + index * 20),
+            ).save(batch_source, format="PNG")
+            batch_sources.append(batch_source)
+        window.batch_panel.set_files(batch_sources)
+        window.content_stack.setCurrentWidget(window.batch_panel)
+        window.batch_mode_button.setText("Обычный режим")
+        application.processEvents()
+        window.grab().save(str(SCREENSHOT_DIR / "pixora-batch.png"))
 
         processed_image.close()
         window.close()

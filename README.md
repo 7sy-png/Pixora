@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/7sy-png/Pixora/releases/latest/download/Pixora-v1.2.0-windows-x64.exe">
+  <a href="https://github.com/7sy-png/Pixora/releases/latest/download/Pixora-v2.0.0-windows-x64.exe">
     <strong>Скачать Pixora для Windows</strong>
   </a>
 </p>
@@ -27,12 +27,13 @@
 - живой предпросмотр размера, пропорций, поворота и отражения;
 - Drag & Drop и выбор файла через проводник;
 - предпросмотр результата перед сохранением;
-- обработка без зависания интерфейса.
+- обработка без зависания интерфейса;
+- пакетная обработка через FastAPI, Redis, Celery и несколько Docker-workers.
 
 ## Скачать и запустить
 
 1. Скачайте
-   [Pixora-v1.2.0-windows-x64.exe](https://github.com/7sy-png/Pixora/releases/latest/download/Pixora-v1.2.0-windows-x64.exe).
+   [Pixora-v2.0.0-windows-x64.exe](https://github.com/7sy-png/Pixora/releases/latest/download/Pixora-v2.0.0-windows-x64.exe).
 2. Запустите файл — установка не требуется.
 3. Выберите изображение и задайте параметры обработки.
 
@@ -63,6 +64,23 @@ python main.py
 ```
 
 Поддерживаются файлы `.jpg`, `.jpeg`, `.png` и `.webp` размером до 20 МБ.
+
+## Распределённый режим
+
+Для пакетной обработки установите Docker Desktop и запустите локальный кластер:
+
+```powershell
+python -m pip install -r requirements.txt -r requirements-distributed.txt
+docker compose up --build --detach
+python scripts/distributed_smoke_test.py
+python main.py
+```
+
+Каждое изображение становится отдельной задачей Celery, а Redis распределяет
+задачи между двумя независимыми workers. Подробная схема, API и масштабирование
+описаны в [документации распределённой обработки](docs/distributed-processing.md).
+
+![Распределённая пакетная обработка](docs/screenshots/pixora-batch.png)
 
 ## Лицензия
 
