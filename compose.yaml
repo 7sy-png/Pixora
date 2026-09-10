@@ -1,0 +1,120 @@
+name: pixora-distributed
+
+x-pixora-environment: &pixora-environment
+  PIXORA_REDIS_BROKER_URL: redis://redis:6379/0
+  PIXORA_REDIS_RESULT_URL: redis://redis:6379/1
+  PIXORA_REDIS_METADATA_URL: redis://redis:6379/2
+  PIXORA_MINIO_ENDPOINT: minio:9000
+  PIXORA_MINIO_ACCESS_KEY: ${PIXORA_MINIO_ACCESS_KEY:-pixora}
+  PIXORA_MINIO_SECRET_KEY: ${PIXORA_MINIO_SECRET_KEY:-pixora-development}
+  PIXORA_MINIO_SECURE: "false"
+  PIXORA_MINIO_INPUT_BUCKET: pixora-input
+  PIXORA_MINIO_RESULT_BUCKET: pixora-results
+  PIXORA_MAX_BATCH_FILES: ${PIXORA_MAX_BATCH_FILES:-50}
+  PIXORA_MAX_BATCH_SIZE_BYTES: ${PIXORA_MAX_BATCH_SIZE_BYTES:-209715200}
+  PIXORA_RESULT_EXPIRES_SECONDS: ${PIXORA_RESULT_EXPIRES_SECONDS:-86400}
+
+services:
+  redis:
+    image: redis:7.4.11-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${PIXORA_MINIO_ACCESS_KEY:-pixora}
+      MINIO_ROOT_PASSWORD: ${PIXORA_MINIO_SECRET_KEY:-pixora-development}
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${PIXORA_MINIO_ACCESS_KEY:-pixora}
+      MINIO_ROOT_PASSWORD: ${PIXORA_MINIO_SECRET_KEY:-pixora-development}
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD; do sleep 2; done;
+      mc mb --ignore-existing local/pixora-input;
+      mc mb --ignore-existing local/pixora-results;
+      "
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.distributed
+    restart: unless-stopped
+    environment: *pixora-environment
+    command: uvicorn app.distributed.api:app --host 0.0.0.0 --port 8000
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)
+      interval: 15s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    depends_on:
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.distributed
+    restart: unless-stopped
+    environment: *pixora-environment
+    command: >
+      celery --app app.distributed.celery_app:celery_app worker
+      --loglevel=INFO --concurrency=1 --hostname=worker@%h
+    deploy:
+      replicas: 2
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          celery --app app.distributed.celery_app:celery_app inspect ping
+          --destination worker@$$HOSTNAME --timeout 5 | grep -q pong
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    depends_on:
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+
+volumes:
+  redis-data:
+  minio-data:
