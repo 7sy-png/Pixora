@@ -6,10 +6,23 @@ import pytest
 from app.distributed.contracts import (
     BatchJob,
     BatchManifest,
+    ClusterStatusResponse,
     JobStatusResponse,
     OutputDetails,
     ProcessingOptionsPayload,
 )
+
+
+def test_cluster_endpoint_returns_monitor_snapshot(monkeypatch) -> None:
+    expected = ClusterStatusResponse(
+        redis="online",
+        minio="online",
+        queue_depth=2,
+        workers=[],
+    )
+    monkeypatch.setattr(api_module.cluster_monitor, "snapshot", lambda: expected)
+
+    assert api_module.get_cluster_status() == expected
 
 
 def test_partial_dispatch_keeps_every_job_trackable(monkeypatch) -> None:

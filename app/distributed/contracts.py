@@ -114,3 +114,22 @@ class BatchStatusResponse(BaseModel):
     cancelled: int = 0
     progress: int = Field(ge=0, le=100)
     jobs: list[JobStatusResponse]
+
+
+class ClusterWorkerStatus(BaseModel):
+    """Live workload reported by one connected Celery worker."""
+
+    worker_id: str
+    status: Literal["idle", "busy"]
+    active_tasks: int = Field(ge=0)
+    active_job_ids: list[str] = Field(default_factory=list)
+
+
+class ClusterStatusResponse(BaseModel):
+    """Observable state of the services participating in processing."""
+
+    api: Literal["online"] = "online"
+    redis: Literal["online", "offline"]
+    minio: Literal["online", "offline"]
+    queue_depth: int | None = Field(default=None, ge=0)
+    workers: list[ClusterWorkerStatus] = Field(default_factory=list)

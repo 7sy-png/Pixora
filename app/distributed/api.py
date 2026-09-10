@@ -16,12 +16,14 @@ from pydantic import ValidationError
 
 from app import __version__
 from app.distributed.celery_app import celery_app
+from app.distributed.cluster import ClusterMonitor
 from app.distributed.config import load_settings
 from app.distributed.contracts import (
     BatchCreatedResponse,
     BatchJob,
     BatchManifest,
     BatchStatusResponse,
+    ClusterStatusResponse,
     JobAccepted,
     JobStatusResponse,
     OutputDetails,
@@ -40,6 +42,7 @@ from app.utils.validation import (
 settings = load_settings()
 storage = ObjectStorage(settings)
 batch_repository = BatchRepository(settings)
+cluster_monitor = ClusterMonitor(settings, celery_app, storage)
 logger = logging.getLogger(__name__)
 
 
@@ -72,6 +75,12 @@ def health() -> dict[str, str]:
             detail="Distributed services are unavailable",
         ) from error
     return {"status": "ok"}
+
+
+@app.get("/api/v1/cluster", response_model=ClusterStatusResponse)
+def get_cluster_status() -> ClusterStatusResponse:
+    """Expose the real services, queue depth and connected worker workload."""
+    return cluster_monitor.snapshot()
 
 
 @app.post(
